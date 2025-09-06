@@ -8,15 +8,14 @@ import {
   ImageIcon,
   MessageSquare,
 } from "lucide-react";
-import { useContext } from "react";
+//import { useContext } from "react";
 import { useState } from "react";
-import { AuthContext } from "../context/AuthContext";
+//import { AuthContext } from "../context/AuthContext";
 //import { NavLink } from "react-router-dom";
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 
 const Detail = () => {
   const [expandedSections, setExpandedSections] = useState("photos");
-
-  const { userSignOut } = useContext(AuthContext);
 
   const toggleSection = (section) => {
     setExpandedSections((prev) =>
@@ -36,18 +35,19 @@ const Detail = () => {
   ];
 
   return (
-    <div className="flex-1 bg-white/5 backdrop-blur-lg border-l border-white/10 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30">
+    <div className="flex-1 h-full bg-white/5 backdrop-blur-lg border-l border-white/10 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30">
       {/* User Profile Section */}
-      <div className="p-4 sm:p-6 border-b border-white/10">
-        <div className="flex flex-col items-center text-center space-y-3">
-          <img
-            src="/avatar.png"
-            alt="User Avatar"
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-white/20"
-          />
+      <div className="p-3 sm:p-6 border-b border-white/10">
+        <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
+          <Avatar className="w-14 h-14 sm:w-20 sm:h-20 border-2 border-white/20">
+            <AvatarImage src="/avatar.png" alt="User Avatar" />
+            <AvatarFallback className="bg-white/10 text-white font-medium text-xs sm:text-base">JD</AvatarFallback>
+          </Avatar>
           <div>
-            <h3 className="text-white font-semibold text-lg">John Doe</h3>
-            <p className="text-white/70 text-sm mt-1 max-w-xs">
+            <h3 className="text-white font-semibold text-base sm:text-lg">
+              John Doe
+            </h3>
+            <p className="text-white/70 text-xs sm:text-sm mt-1 max-w-xs">
               A web developer with a passion for creating interactive
               applications.
             </p>
@@ -56,7 +56,7 @@ const Detail = () => {
       </div>
 
       {/* Options Sections */}
-      <div className="p-4 sm:p-6 space-y-4">
+      <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
         {/* Chat Settings */}
         <div className="bg-white/5 backdrop-blur-sm rounded-lg border border-white/10">
           <button
@@ -140,8 +140,8 @@ const Detail = () => {
             )}
           </button>
           {expandedSections.includes("photos") && (
-            <div className="px-4 pb-4">
-              <div className="grid grid-cols-3 gap-2 mt-3">
+            <div className="px-2 sm:px-4 pb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
                 {photos.map((photo, index) => (
                   <div key={index} className="aspect-square">
                     <img
@@ -194,11 +194,8 @@ const Detail = () => {
       </div>
 
       {/*Log out Button*/}
-      <div className="p-4 sm:p-6 border-t border-white/10 flex justify-center">
-        <button
-          onClick={userSignOut}
-          className="bg-red-700 text-white py-2 px-4 rounded-lg"
-        >
+      <div className="p-3 sm:p-6 border-t border-white/10 flex justify-center">
+        <button className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base">
           Log out
         </button>
       </div>
@@ -207,3 +204,6 @@ const Detail = () => {
 };
 
 export default Detail;
+
+
+

@@ -1,5 +1,7 @@
 import { createContext, useState } from "react";
 import axios from "axios";
+import { toast } from "sonner";
+
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext();
@@ -20,8 +22,11 @@ export const AuthProvider = ({ children }) => {
       await axios.post(`${BASE_URL}/chatserver/signUp`, userData);
       setIsLoggedIn(false); // not logged in yet
     } catch (err) {
+      toast.error('Signup Failed')
+      setIsLoggedIn(false);
       setError(err.response?.data?.message || "Signup failed");
     } finally {
+      toast('Signup Successful')
       setLoading(false);
     }
   };
@@ -37,9 +42,11 @@ export const AuthProvider = ({ children }) => {
       await getCurrentUser(res.data.accessToken); // fetch user after login
     } catch (err) {
       setError(err.response?.data?.message || "Signin failed");
+      toast.error('Signin Failed')
       setIsLoggedIn(false);
     } finally {
-      setLoading(false);
+      setLoading(false)
+      toast.success("SignIn Successful");
     }
   };
 

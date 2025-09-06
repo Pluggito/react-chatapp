@@ -1,8 +1,8 @@
 import { useState, useContext } from "react"
-import { Button } from "../ui/button"
-import { Input } from "../ui/input"
+import { Button } from "../components/ui/button"
+import { Input } from "../components/ui/input"
 import { X, Mail, ChevronDown, Eye, EyeOff, User } from "lucide-react"
-import { AuthContext } from "../../context/AuthContext"
+import { AuthContext } from "../context/AuthContext"
 
 
 export function AuthCard() {
@@ -34,7 +34,7 @@ export function AuthCard() {
 }
 
   return (
-    <div className="w-full max-w-md mx-auto">
+    <div className="w-full max-w-md mx-auto ">
       <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-[32px] p-8 shadow-2xl transform transition-all duration-300 hover:scale-[1.02] hover:shadow-3xl">
         {/* Header with tabs and close button */}
         <div className="flex items-center justify-between mb-8">
