@@ -5,7 +5,6 @@ import { toast } from "sonner";
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext();
 
-//const BASE_URL = "http://localhost:3050";
 
 export const AuthProvider = ({ children }) => {
   const [authToken, setAuthToken] = useState("");

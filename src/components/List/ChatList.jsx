@@ -10,7 +10,7 @@ import axios from "axios"
 import { AuthContext } from "../../context/AuthContext"
 import { io } from "socket.io-client"
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3050"
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ||  import.meta.env.VITE_API_BASE_URL || "http://localhost:3050"
 
 const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId }) => {
   const [addMode, setAddMode] = useState(false)
