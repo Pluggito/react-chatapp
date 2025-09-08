@@ -19,4 +19,11 @@ export default defineConfig({
     build: {
       outDir: "dist",
     },
+    server: {
+        historyApiFallback: true,
+      },
+      optimization: {
+        minimize: true,
+        splitChunks: { chunks: "all" }
+      }
 })

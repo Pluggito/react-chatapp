@@ -34,7 +34,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId }) => {
   const loadUserChatrooms = async () => {
     try {
       setLoading(true)
-      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chat/chatrooms/user/${user.id}`)
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`)
 
       const formattedContacts = res.data.map(chatroom => {
         // Find the other user in the chatroom (not the current user)
@@ -67,7 +67,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId }) => {
     
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/users/search`,
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/users/search`,
         {
           params: { search: searchInput },
         }
@@ -92,7 +92,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId }) => {
         return
       }
 
-      const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chat/chatrooms`, {
+      const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms`, {
         currentUserId: user.id,
         otherUserId: selectedUser.id,
       }, {

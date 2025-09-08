@@ -5,7 +5,7 @@ import { toast } from "sonner";
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext();
 
-const BASE_URL = "http://localhost:3050";
+//const BASE_URL = "http://localhost:3050";
 
 export const AuthProvider = ({ children }) => {
   const [authToken, setAuthToken] = useState("");
@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
   const refreshAccessToken = async () => {
     try {
       const res = await axios.post(
-        `${BASE_URL}/chatserver/auth/refresh`,
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/refresh`,
         {},
         { withCredentials: true }
       );
@@ -40,8 +40,8 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError("");
     try {
-      await axios.post(`${BASE_URL}/chatserver/auth/signUp`, userData);
-      toast.success("SignUp Successful. Please sign in to continue.");
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signUp`, userData);
+      toast.success("SignUp Successful. Login successful");
       setIsLoggedIn(false);
     } catch (err) {
       toast.error("SignUp Failed");
@@ -56,7 +56,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post(`${BASE_URL}/chatserver/auth/signIn`, credentials, {
+      const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signIn`, credentials, {
         withCredentials: true,
       });
       setAuthToken(res.data.accessToken);
@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }) => {
     if (!token) return;
     
     try {
-      const res = await axios.get(`${BASE_URL}/chatserver/auth/current`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/current`, {
         headers: { Authorization: `Bearer ${token}` },
         withCredentials: true,
       });
@@ -103,7 +103,7 @@ export const AuthProvider = ({ children }) => {
   const userSignOut = async () => {
     try {
       // Call backend logout to clear refresh token cookie
-      await axios.post(`${BASE_URL}/chatserver/auth/signOut`, {}, {
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signOut`, {}, {
         withCredentials: true
       });
     } catch (err) {
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // Make a simple request to check if refresh token cookie exists
       // This is optional - you can remove this if your backend doesn't support it
-      await axios.get(`${BASE_URL}/chatserver/auth/check-refresh`, {
+      await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/check-refresh`, {
         withCredentials: true
       });
       return true;

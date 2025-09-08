@@ -6,11 +6,14 @@ import { useContext, useState } from "react";
 import { AuthContext } from "./context/AuthContext";
 import { Toaster } from "./components/ui/sonner";
 import { useIsMobile } from "./hooks/use-mobile";
+import { Sheet, SheetContent, SheetHeader } from "./components/ui/sheet";
 
 const App = () => {
   const { user, isLoggedIn } = useContext(AuthContext);
    const [activeChatRoomId, setActiveChatRoomId] = useState(null)
+   const [activeMembers, setActiveMembers] = useState([]);
   const syncUser = user;
+  const [openDetail, setOpenDetail] = useState(false);
 
   return (
     <div className="bg-black min-h-screen flex items-center justify-center text-white overflow-hidden p-2 md:p-4">
@@ -35,12 +38,27 @@ const App = () => {
               onChatSelect={setActiveChatRoomId}
             />
           </aside>
-          <div className="w-full md:w-2/4 h-2/4 md:h-full overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 hidden md:block ">
-            <Chat chatId={activeChatRoomId} />
+          <div
+            className={`${
+              openDetail ? "md:w-2/4" : "md:w-full"
+            } w-full md:w-2/4 h-2/4 md:h-full overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 hidden md:block `}
+          >
+            <Chat
+              chatId={activeChatRoomId}
+              activeMembers={activeMembers}
+              setActiveMembers={setActiveMembers}
+              setOpenDetail={setOpenDetail}
+            />
           </div>
-          <aside className="w-full md:w-1/4 h-1/4 md:h-full overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30  hidden md:block ">
-            <Detail />
-          </aside>
+          {/* Sheet UI for Detail */}
+          <Sheet open={openDetail} onOpenChange={setOpenDetail}>
+            <SheetContent side="right" className="w-full sm:w-[400px] md:w-[400px] p-0 bg-black/80 border-none">
+              <SheetHeader>
+                {/* Optionally add a header or close button */}
+              </SheetHeader>
+              <Detail otherUser={activeMembers[0]} />
+            </SheetContent>
+          </Sheet>
         </main>
       ) : (
         <div className="flex items-center justify-center w-full h-full">

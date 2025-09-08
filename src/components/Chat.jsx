@@ -8,11 +8,10 @@ import { io } from "socket.io-client";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3050";
 
-const Chat = ({ chatId }) => {
+const Chat = ({ chatId, activeMembers, setActiveMembers, setOpenDetail }) => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
-  const [activeMembers, setActiveMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [chatRoom, setChatRoom] = useState(null);
   const { user, authToken } = useContext(AuthContext);
@@ -37,7 +36,7 @@ const Chat = ({ chatId }) => {
         setLoading(true);
         
         // 1️⃣ Get chatroom details
-        const { data: chatRoomData } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chat/chatrooms/${chatId}`);
+        const { data: chatRoomData } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`);
         setChatRoom(chatRoomData);
 
         if (chatRoomData.id !== chatId) {
@@ -46,14 +45,14 @@ const Chat = ({ chatId }) => {
         }
 
         // 2️⃣ Get active members (users in this chatroom)
-        const { data: members } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chat/chatrooms/${chatId}/members`);
+        const { data: members } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`);
 
         // Filter out current user from active members for display
         const otherMembers = members.filter(member => member.userId !== user.id);
         setActiveMembers(otherMembers);
 
         // 3️⃣ Get messages
-        const { data: msgs } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chat/chatrooms/${chatId}/messages`);
+        const { data: msgs } = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`);
         setMessages(msgs);
         
       } catch (err) {
@@ -102,7 +101,7 @@ const Chat = ({ chatId }) => {
     try {
       // Send message to backend (persist)
       const { data: newMsg } = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/chat/chatrooms/${chatId}/messages`,
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
         { senderId: user.id, content: text.trim() },
         {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -160,7 +159,9 @@ const Chat = ({ chatId }) => {
         <div className="flex items-center gap-2 sm:gap-3">
           {activeMembers[0] && (
             <Avatar className="w-9 h-9 sm:w-12 sm:h-12 md:w-14 md:h-14 ring-2 ring-white/20">
-              <AvatarImage src={activeMembers[0].user?.avatar || "/placeholder.svg"} />
+              <AvatarImage
+                src={activeMembers[0].user?.avatar || "/placeholder.svg"}
+              />
               <AvatarFallback className="bg-white/10 text-white font-medium text-xs sm:text-base">
                 {activeMembers[0].user?.firstName?.[0] || "U"}
                 {activeMembers[0].user?.lastName?.[0] || ""}
@@ -169,10 +170,16 @@ const Chat = ({ chatId }) => {
           )}
           <div>
             <span className="text-xs sm:text-base font-semibold text-white">
-              {activeMembers.length > 0 
-                ? activeMembers.map((m) => `${m.user?.firstName || 'Unknown'} ${m.user?.lastName || 'User'}`).join(", ")
-                : "Loading..."
-              }
+              {activeMembers.length > 0
+                ? activeMembers
+                    .map(
+                      (m) =>
+                        `${m.user?.firstName || "Unknown"} ${
+                          m.user?.lastName || "User"
+                        }`
+                    )
+                    .join(", ")
+                : "Loading..."}
             </span>
             <p className="text-xs sm:text-sm text-green-400 font-medium">
               Online
@@ -182,7 +189,10 @@ const Chat = ({ chatId }) => {
         <div className="flex items-center gap-2 sm:gap-3">
           <Phone className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
           <Video className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
-          <Info className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+          <Info
+            className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors"
+            onClick={() => setOpenDetail(true)}
+          />
         </div>
       </div>
 
@@ -198,35 +208,58 @@ const Chat = ({ chatId }) => {
         ) : (
           messages.map((message) => {
             const isOwnMessage = message.senderId === user?.id;
-            
+
             return (
-              <div key={message.id} className={`flex gap-2 sm:gap-3 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+              <div
+                key={message.id}
+                className={`flex gap-2 sm:gap-3 ${
+                  isOwnMessage ? "justify-end" : "justify-start"
+                }`}
+              >
                 {!isOwnMessage && (
                   <Avatar className="w-6 h-6 sm:w-8 sm:h-8 ring-1 ring-white/20 flex-shrink-0">
-                    <AvatarImage src={message.sender?.avatar || "/placeholder.svg"} />
+                    <AvatarImage
+                      src={message.sender?.avatar || "/placeholder.svg"}
+                    />
                     <AvatarFallback className="bg-white/10 text-white font-medium text-xs sm:text-xs">
                       {message.sender?.firstName?.[0] || "U"}
                       {message.sender?.lastName?.[0] || ""}
                     </AvatarFallback>
                   </Avatar>
                 )}
-                <div className={`max-w-[80%] sm:max-w-[60%] ${isOwnMessage ? "order-first" : ""}`}>
-                  <div className={`p-2 sm:p-3 rounded-2xl backdrop-blur-md border ${
+                <div
+                  className={`max-w-[80%] sm:max-w-[60%] ${
+                    isOwnMessage ? "order-first" : ""
+                  }`}
+                >
+                  <div
+                    className={`p-2 sm:p-3 rounded-2xl backdrop-blur-md border ${
                       isOwnMessage
                         ? "bg-white/15 text-white border-white/30 ml-auto"
                         : "bg-white/10 text-white border-white/20"
-                    }`}>
+                    }`}
+                  >
                     {message.image && (
-                      <img src={message.image} className="w-full object-cover rounded-lg mb-2" alt="attachment" />
+                      <img
+                        src={message.image}
+                        className="w-full object-cover rounded-lg mb-2"
+                        alt="attachment"
+                      />
                     )}
                     <p className="text-xs sm:text-base leading-relaxed whitespace-pre-wrap">
                       {message.content || message.text}
                     </p>
                   </div>
-                  <span className={`text-xs text-white/60 mt-1 block ${isOwnMessage ? "text-right" : "text-left"}`}>
-                    {new Date(message.createdAt || Date.now()).toLocaleTimeString([], {
-                      hour: '2-digit', 
-                      minute: '2-digit'
+                  <span
+                    className={`text-xs text-white/60 mt-1 block ${
+                      isOwnMessage ? "text-right" : "text-left"
+                    }`}
+                  >
+                    {new Date(
+                      message.createdAt || Date.now()
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </span>
                 </div>
@@ -253,15 +286,18 @@ const Chat = ({ chatId }) => {
           rows={1}
         />
         <div className="relative">
-          <Smile className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" onClick={() => setOpen(!open)} />
+          <Smile
+            className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors"
+            onClick={() => setOpen(!open)}
+          />
           {open && (
             <div className="absolute bottom-12 right-0 z-50">
               <EmojiPicker onEmojiClick={handleEmoji} />
             </div>
           )}
         </div>
-        <button 
-          onClick={sendMessage} 
+        <button
+          onClick={sendMessage}
           disabled={!text.trim()}
           className="bg-white hover:bg-black hover:text-white ease-in text-black py-1 px-2 sm:px-4 border-none rounded-xl cursor-pointer transition-colors flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >

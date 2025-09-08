@@ -8,28 +8,28 @@ import {
   ImageIcon,
   MessageSquare,
 } from "lucide-react";
-import {  useContext, useState } from "react";
+import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 //import { NavLink } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthCard } from "../auth/AuthForm";
+//import axios from "axios";
 
-const Detail = () => {
-  const [expandedSections, setExpandedSections] = useState("");
-  const { userSignOut } = useContext(AuthContext);
+const Detail = ({ otherUser }) => {
+  const [expandedSections, setExpandedSections] = useState([]);
+  const { userSignOut, loading } = useContext(AuthContext);
 
-    const userLogOut = async() =>{
+  const userLogOut = async () => {
     try {
       const signout = await userSignOut();
-      if(signout){
-        return <AuthCard/>;
+      if (signout) {
+        return <AuthCard />;
       }
     } catch (error) {
       console.error("Error during sign out", error);
-      
     }
-     
-  }
+  };
+
   const toggleSection = (section) => {
     setExpandedSections((prev) =>
       prev.includes(section)
@@ -47,25 +47,65 @@ const Detail = () => {
     "/property-18.png",
   ];
 
+  // Helper function to get user display info
+  const getUserDisplayInfo = () => {
+    if (loading) {
+      return {
+        name: "Loading...",
+        initials: "...",
+        description: "Loading user information...",
+      };
+    }
+
+    if (otherUser) {
+      const firstName = otherUser.firstName || "";
+      const lastName = otherUser.lastName || "";
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      return {
+        name: fullName || "Unknown User",
+        initials: `${firstName?.[0] || ""}${lastName?.[0] || ""}`.trim() || "U",
+        description:
+          otherUser.email || otherUser.username || "No additional information available.",
+      };
+    }
+
+    return {
+      name: "Unknown User",
+      initials: "U",
+      description: "No user information available.",
+    };
+  };
+
+  const userInfo = getUserDisplayInfo();
+
   return (
     <div className="flex-1 h-full bg-white/5 backdrop-blur-lg border-l border-white/10 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30">
       {/* User Profile Section */}
       <div className="p-3 sm:p-6 border-b border-white/10">
         <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
           <Avatar className="w-14 h-14 sm:w-20 sm:h-20 border-2 border-white/20">
-            <AvatarImage src="/avatar.png" alt="User Avatar" />
+            <AvatarImage
+              src={otherUser?.profileImage || "/avatar.png"}
+              alt="User Avatar"
+            />
             <AvatarFallback className="bg-white/10 text-white font-medium text-xs sm:text-base">
-              JD
+              {userInfo.initials}
             </AvatarFallback>
           </Avatar>
           <div>
             <h3 className="text-white font-semibold text-base sm:text-lg">
-              John Doe
+              {userInfo.name}
             </h3>
             <p className="text-white/70 text-xs sm:text-sm mt-1 max-w-xs">
-              A web developer with a passion for creating interactive
-              applications.
+              {userInfo.description}
             </p>
+            {otherUser?.isOnline && (
+              <div className="flex items-center justify-center gap-1 mt-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-green-400 text-xs">Online</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -208,10 +248,10 @@ const Detail = () => {
         </div>
       </div>
 
-      {/*Log out Button*/}
+      {/* Log out Button */}
       <div className="p-3 sm:p-6 border-t border-white/10 flex justify-center">
         <button
-          className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base"
+          className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base hover:bg-red-600 transition-colors"
           onClick={userLogOut}
         >
           Log out
@@ -222,6 +262,3 @@ const Detail = () => {
 };
 
 export default Detail;
-
-
-
