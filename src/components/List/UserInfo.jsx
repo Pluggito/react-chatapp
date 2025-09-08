@@ -8,8 +8,27 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { AlertDialog } from "../ui/alert-dialog";
+import { useContext } from "react";
+import { AuthContext } from "../../context/AuthContext";
+
 
 const UserInfo = ({ user }) => {
+  const { userSignOut} = useContext(AuthContext)
+ 
+  
+    const userLogOut = async () => {
+      try {
+        const signout = await userSignOut();
+        if (signout) {
+          return <AuthCard />;
+        }
+      } catch (error) {
+        console.error("Error during sign out", error);
+      }
+    };
+
+
   return (
     <>
       {user && (
@@ -48,7 +67,12 @@ const UserInfo = ({ user }) => {
                <DropdownMenuGroup>
                 <DropdownMenuItem className="hover:bg-white/10 text-white/70">Profile</DropdownMenuItem>
                 <DropdownMenuItem className="hover:bg-white/10 text-white/70">Settings</DropdownMenuItem>
-                <DropdownMenuItem className="hover:bg-white/10 text-white/70">Logout</DropdownMenuItem>
+                <DropdownMenuItem
+                  className="hover:bg-white/10 text-white/70"
+                  onClick={userLogOut}
+                >
+                  Logout
+                </DropdownMenuItem>
                </DropdownMenuGroup>
                 </DropdownMenuContent>
              </DropdownMenu>

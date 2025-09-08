@@ -14,6 +14,17 @@ import { AuthContext } from "../context/AuthContext";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthCard } from "../auth/AuthForm";
 //import axios from "axios";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
 
 const Detail = ({ otherUser }) => {
   const [expandedSections, setExpandedSections] = useState([]);
@@ -66,7 +77,9 @@ const Detail = ({ otherUser }) => {
         name: fullName || "Unknown User",
         initials: `${firstName?.[0] || ""}${lastName?.[0] || ""}`.trim() || "U",
         description:
-          otherUser.email || otherUser.username || "No additional information available.",
+          otherUser.email ||
+          otherUser.username ||
+          "No additional information available.",
       };
     }
 
@@ -250,12 +263,27 @@ const Detail = ({ otherUser }) => {
 
       {/* Log out Button */}
       <div className="p-3 sm:p-6 border-t border-white/10 flex justify-center">
-        <button
-          className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base hover:bg-red-600 transition-colors"
-          onClick={userLogOut}
-        >
-          Log out
-        </button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base hover:bg-red-600 transition-colors">
+              Log out
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Log out</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to log out?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={userLogOut}>
+                Log out
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
