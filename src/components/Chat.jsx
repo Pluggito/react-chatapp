@@ -6,7 +6,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
 import { io } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3050";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:3050";
 
 const Chat = ({ chatId, activeMembers, setActiveMembers, setOpenDetail }) => {
   const [open, setOpen] = useState(false);
