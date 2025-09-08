@@ -7,7 +7,7 @@ import UserInfo from "./UserInfo"
 import { AuthContext } from "../../context/AuthContext"
 
 
-const List = () => {
+const List = ({ setActiveChatRoomId, activeChatRoomId }) => {
  const { user } = useContext(AuthContext)
 
   return (
@@ -15,11 +15,11 @@ const List = () => {
       {/* Header */}
       <UserInfo user={user} />
       {/* Contact List <ChatList/> */}
-     <ChatList/>
-     
-      
+      <ChatList setActiveChatRoomId={setActiveChatRoomId} activeChatRoomId={activeChatRoomId}
+       onChatSelect={setActiveChatRoomId}
+      />
     </div>
-  )
+  );
 }
 
 export default List

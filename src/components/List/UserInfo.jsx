@@ -2,7 +2,6 @@ import { MoreHorizontal, Video, Edit3 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 const UserInfo = ({ user }) => {
-  console.log("User in UserInfo:", user); // Debugging line to check user prop
   return (
     <>
       {user && (

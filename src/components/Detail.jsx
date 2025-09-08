@@ -8,15 +8,28 @@ import {
   ImageIcon,
   MessageSquare,
 } from "lucide-react";
-//import { useContext } from "react";
-import { useState } from "react";
-//import { AuthContext } from "../context/AuthContext";
+import {  useContext, useState } from "react";
+import { AuthContext } from "../context/AuthContext";
 //import { NavLink } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import { AuthCard } from "../auth/AuthForm";
 
 const Detail = () => {
-  const [expandedSections, setExpandedSections] = useState("photos");
+  const [expandedSections, setExpandedSections] = useState("");
+  const { userSignOut } = useContext(AuthContext);
 
+    const userLogOut = async() =>{
+    try {
+      const signout = await userSignOut();
+      if(signout){
+        return <AuthCard/>;
+      }
+    } catch (error) {
+      console.error("Error during sign out", error);
+      
+    }
+     
+  }
   const toggleSection = (section) => {
     setExpandedSections((prev) =>
       prev.includes(section)
@@ -41,7 +54,9 @@ const Detail = () => {
         <div className="flex flex-col items-center text-center space-y-2 sm:space-y-3">
           <Avatar className="w-14 h-14 sm:w-20 sm:h-20 border-2 border-white/20">
             <AvatarImage src="/avatar.png" alt="User Avatar" />
-            <AvatarFallback className="bg-white/10 text-white font-medium text-xs sm:text-base">JD</AvatarFallback>
+            <AvatarFallback className="bg-white/10 text-white font-medium text-xs sm:text-base">
+              JD
+            </AvatarFallback>
           </Avatar>
           <div>
             <h3 className="text-white font-semibold text-base sm:text-lg">
@@ -195,7 +210,10 @@ const Detail = () => {
 
       {/*Log out Button*/}
       <div className="p-3 sm:p-6 border-t border-white/10 flex justify-center">
-        <button className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base">
+        <button
+          className="bg-red-700 text-white py-2 px-4 rounded-lg text-xs sm:text-base"
+          onClick={userLogOut}
+        >
           Log out
         </button>
       </div>
