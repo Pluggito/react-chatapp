@@ -328,7 +328,7 @@ const Chat = ({
 
         {/* Shrink width on mobile */}
         <textarea
-          className="flex-grow bg-white/10 backdrop-blur-sm border border-white/20 outline-none text-white p-2 sm:p-3 text-sm rounded-xl placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[36px] sm:min-h-[40px] max-h-[90px] sm:max-h-[120px] w-[75%] sm:w-auto"
+          className={`${isMobile ? "bg-black": "bg-white/10 backdrop-blur-sm"}flex-grow  border border-white/20 outline-none text-white p-2 sm:p-3 text-sm rounded-xl placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[36px] sm:min-h-[40px] max-h-[90px] sm:max-h-[120px] w-[75%] sm:w-auto`}
           placeholder="Type a message..."
           value={text}
           onChange={(e) => setText(e.target.value)}

@@ -20,6 +20,7 @@ const List = ({ setActiveChatRoomId, activeChatRoomId, onChatSelect, isMobile })
         setActiveChatRoomId={setActiveChatRoomId}
         activeChatRoomId={activeChatRoomId}
         onChatSelect={onChatSelect}
+        isMobile={isMobile}
       />
     </div>
   );
