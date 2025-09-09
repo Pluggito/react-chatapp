@@ -188,7 +188,7 @@ const Chat = ({
   }
 
   return (
-    <div className="flex-1 h-full flex flex-col justify-between border-l border-r border-white/10 backdrop-blur-md bg-black/20">
+    <div className={`${isMobile ? "bg-black" : "bg-black/20 backdrop-blur-md"} flex-1 h-full flex flex-col justify-between border-l border-r border-white/10 `}>
       {/* Chat Header */}
       <div className="flex p-2 sm:p-3 justify-between items-center border-b border-white/10 backdrop-blur-sm">
         <div className="flex items-center gap-2">
@@ -241,7 +241,6 @@ const Chat = ({
           <Video className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
           <Info
             className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white"
-            onClick={() => setOpenDetail(true)}
           />
         </div>
       </div>

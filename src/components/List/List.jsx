@@ -7,13 +7,14 @@ import UserInfo from "./UserInfo";
 import { AuthContext } from "../../context/AuthContext";
 
 
-const List = ({ setActiveChatRoomId, activeChatRoomId, onChatSelect }) => {
+const List = ({ setActiveChatRoomId, activeChatRoomId, onChatSelect, isMobile }) => {
   const { user } = useContext(AuthContext);
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <UserInfo user={user} />
+      <UserInfo user={user} isMobile={isMobile} />
+      {/* <UserInfo user={user} 
       {/* Contact List <ChatList/> */}
       <ChatList
         setActiveChatRoomId={setActiveChatRoomId}

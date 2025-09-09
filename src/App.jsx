@@ -45,6 +45,7 @@ const App = () => {
                 setActiveChatRoomId={setActiveChatRoomId}
                 activeChatRoomId={activeChatRoomId}
                 onChatSelect={handleMobileChatSelect}
+                isMobile={true}
               />
             ) : (
               <Chat

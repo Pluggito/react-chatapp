@@ -13,7 +13,7 @@ import { useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 
 
-const UserInfo = ({ user }) => {
+const UserInfo = ({ user, isMobile }) => {
   const { userSignOut} = useContext(AuthContext)
  
   
@@ -32,7 +32,7 @@ const UserInfo = ({ user }) => {
   return (
     <>
       {user && (
-        <div className="p-4 md:p-6 flex gap-3 items-center justify-between bg-white/5 backdrop-blur-lg border-b border-white/10 ">
+        <div className={`${isMobile ? "bg-black": "bg-white/5 backdrop-blur-lg"} p-4 md:p-6 flex gap-3 items-center justify-between  border-b border-white/10 `}>
           <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1 ">
             <Avatar className="w-9 h-9 md:w-11 md:h-11 flex-shrink-0">
               <AvatarImage
