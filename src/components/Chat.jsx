@@ -14,18 +14,17 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
-import { io } from "socket.io-client";
+import { SocketContext } from "../context/SocketContext";
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:3050";
+//const SOCKET_URL =
+//  import.meta.env.VITE_SOCKET_URL ||
+//  import.meta.env.VITE_API_BASE_URL ||
+//  "http://localhost:3050";
 
 const Chat = ({
   chatId,
   activeMembers,
   setActiveMembers,
-  setOpenDetail,
   isMobile,
   onBackToList,
 }) => {
@@ -36,7 +35,7 @@ const Chat = ({
   const [chatRoom, setChatRoom] = useState(null);
   const { user, authToken } = useContext(AuthContext);
   const endRef = useRef(null);
-  const [socket, setSocket] = useState(null);
+  const socket = useContext(SocketContext);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,29 +103,23 @@ const Chat = ({
     fetchChatData();
   }, [chatId, user?.id, authToken]);
 
+  // Socket listeners
   useEffect(() => {
-    if (!chatId || !user?.id) return;
-    // Connect to socket.io server
-    const s = io(SOCKET_URL, {
-      query: { userId: user.id },
-      transports: ["websocket"],
-      withCredentials: true,
-    });
-    setSocket(s);
+    if (!socket || !chatId) return;
 
-    // Join chat room
-    s.emit("joinRoom", { chatRoomId: chatId });
+    socket.emit("joinRoom", { chatRoomId: chatId });
 
-    // Listen for new messages
-    s.on("newMessage", (msg) => {
+    const handleNewMessage = (msg) => {
       setMessages((prev) => [...prev, msg]);
-    });
+    };
+
+    socket.on("newMessage", handleNewMessage);
 
     return () => {
-      s.emit("leaveRoom", { chatRoomId: chatId });
-      s.disconnect();
+      socket.emit("leaveRoom", { chatRoomId: chatId });
+      socket.off("newMessage", handleNewMessage);
     };
-  }, [chatId, user?.id]);
+  }, [socket, chatId]);
 
   const sendMessage = async () => {
     if (!text.trim() || !chatId || !user?.id) return;
@@ -188,7 +181,11 @@ const Chat = ({
   }
 
   return (
-    <div className={`${isMobile ? "bg-black" : "bg-black/20 backdrop-blur-md"} flex-1 h-full flex flex-col justify-between border-l border-r border-white/10 `}>
+    <div
+      className={`${
+        isMobile ? "bg-black" : "bg-black/20 backdrop-blur-md"
+      } flex-1 h-full flex flex-col justify-between border-l border-r border-white/10 `}
+    >
       {/* Chat Header */}
       <div className="flex p-2 sm:p-3 justify-between items-center border-b border-white/10 backdrop-blur-sm">
         <div className="flex items-center gap-2">
@@ -239,14 +236,13 @@ const Chat = ({
         <div className="flex items-center gap-2">
           <Phone className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
           <Video className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
-          <Info
-            className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white"
-          />
+          <Info className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
         </div>
       </div>
 
       {/* Messages */}
       <div className="p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3">
+    
         {messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-white/60 text-sm">
@@ -277,13 +273,14 @@ const Chat = ({
                   </Avatar>
                 )}
 
+
                 {/* Message bubble */}
                 <div className="max-w-[80%] sm:max-w-[65%]">
                   <div
-                    className={`px-3 py-2 rounded-2xl text-sm leading-snug whitespace-pre-wrap break-words border ${
+                    className={`px-3 py-2 rounded-2xl text-sm leading-snug whitespace-pre-wrap break-words border transition-all duration-200 ${
                       isOwnMessage
-                        ? "bg-white/15 text-white border-white/30 rounded-br-sm ml-auto"
-                        : "bg-white/10 text-white border-white/20 rounded-bl-sm"
+                        ? "bg-[#2a2a2a]/90 text-white border-white/20 rounded-br-sm ml-auto hover:bg-[#333333]"
+                        : "bg-[#1b1b1b]/90 text-white border-white/10 rounded-bl-sm hover:bg-[#242424]"
                     }`}
                   >
                     {message.image && (
@@ -291,6 +288,7 @@ const Chat = ({
                         src={message.image || "/placeholder.svg"}
                         className="w-full object-cover rounded-lg mb-2 max-h-[160px] sm:max-h-[220px]"
                         alt="attachment"
+                       
                       />
                     )}
                     <p>{message.content || message.text}</p>
@@ -298,9 +296,11 @@ const Chat = ({
 
                   {/* Timestamp */}
                   <span
-                    className={`text-[10px] text-white/50 mt-1 block ${
-                      isOwnMessage ? "text-right" : "text-left"
+
+                    className={`text-[10px] text-white/40 mt-1 block ${
+                      isOwnMessage ? "text-right pr-1" : "text-left pl-1"
                     }`}
+                     
                   >
                     {new Date(
                       message.createdAt || Date.now()
@@ -328,7 +328,9 @@ const Chat = ({
 
         {/* Shrink width on mobile */}
         <textarea
-          className={`${isMobile ? "bg-black": "bg-white/10 backdrop-blur-sm"}flex-grow  border border-white/20 outline-none text-white p-2 sm:p-3 text-sm rounded-xl placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[36px] sm:min-h-[40px] max-h-[90px] sm:max-h-[120px] w-[75%] sm:w-auto`}
+          className={`${
+            isMobile ? "bg-black" : "bg-white/10 backdrop-blur-sm"
+          }flex-grow  border border-white/20 outline-none text-white p-2 sm:p-3 text-sm rounded-full placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[36px] sm:min-h-[40px] max-h-[90px] sm:max-h-[120px] lg:w-[85%] w-full sm:w-[75%]`}
           placeholder="Type a message..."
           value={text}
           onChange={(e) => setText(e.target.value)}

@@ -5,11 +5,37 @@ import { toast } from "sonner";
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext();
 
+const ACCESS_TOKEN_KEY = "accessToken";
+const TOKEN_EXPIRY_KEY = "tokenExpiry";
 
+// ===== Local Storage Helpers =====
+const saveAccessToken = (token, expiresInHours = 24) => {
+  const expiryTime = Date.now() + expiresInHours * 60 * 60 * 1000; // 24 hours
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+};
+
+const getAccessToken = () => {
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+  if (!token || !expiry) return null;
+  if (Date.now() > parseInt(expiry)) {
+    removeAccessToken();
+    return null;
+  }
+  return token;
+};
+
+const removeAccessToken = () => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(TOKEN_EXPIRY_KEY);
+};
+
+// ===== Auth + Socket Provider =====
 export const AuthProvider = ({ children }) => {
   const [authToken, setAuthToken] = useState("");
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Start with true for initial load
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -22,13 +48,11 @@ export const AuthProvider = ({ children }) => {
         { withCredentials: true }
       );
       setAuthToken(res.data.accessToken);
+      saveAccessToken(res.data.accessToken);
       return res.data.accessToken;
     } catch (err) {
       console.error("Refresh token failed", err);
-      // Only show toast if user was previously logged in
-      if (isLoggedIn) {
-        toast.error("Session expired. Please sign in again.");
-      }
+      if (isLoggedIn) toast.error("Session expired. Please sign in again.");
       userSignOut();
       throw new Error("Session expired. Please sign in again.");
     }
@@ -40,7 +64,7 @@ export const AuthProvider = ({ children }) => {
     setError("");
     try {
       await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signUp`, userData);
-      toast.success("SignUp Successful. Login successful");
+      toast.success("SignUp Successful.");
       setIsLoggedIn(false);
     } catch (err) {
       toast.error("SignUp Failed");
@@ -55,12 +79,19 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signIn`, credentials, {
-        withCredentials: true,
-      });
-      setAuthToken(res.data.accessToken);
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signIn`,
+        credentials,
+        { withCredentials: true }
+      );
+
+      const token = res.data.accessToken;
+      setAuthToken(token);
+      saveAccessToken(token);
       setIsLoggedIn(true);
-      await getCurrentUser(res.data.accessToken);
+
+      await getCurrentUser(token);
+
       toast.success("SignIn Successful");
     } catch (err) {
       toast.error("SignIn Failed");
@@ -74,17 +105,18 @@ export const AuthProvider = ({ children }) => {
   // ---- Fetch current user ----
   const getCurrentUser = async (token = authToken) => {
     if (!token) return;
-    
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/current`, {
-        headers: { Authorization: `Bearer ${token}` },
-        withCredentials: true,
-      });
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/current`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
+      );
       setUser(res.data);
       return res.data;
     } catch (err) {
       if (err.response?.status === 401 && !loading) {
-        // Only retry refresh if we're not in the initial loading state
         try {
           const newToken = await refreshAccessToken();
           return getCurrentUser(newToken);
@@ -101,29 +133,29 @@ export const AuthProvider = ({ children }) => {
   // ---- Signout ----
   const userSignOut = async () => {
     try {
-      // Call backend logout to clear refresh token cookie
-      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signOut`, {}, {
-        withCredentials: true
-      });
+      await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/signOut`,
+        {},
+        { withCredentials: true }
+      );
     } catch (err) {
       console.error("Logout request failed:", err);
-      // Continue with client-side cleanup even if server call fails
     }
-    
+
+    removeAccessToken();
     setUser(null);
     setAuthToken("");
     setIsLoggedIn(false);
     setError("");
   };
 
-  // ---- Check if refresh token exists (optional helper) ----
+  // ---- Check refresh token ----
   const checkRefreshTokenExists = async () => {
     try {
-      // Make a simple request to check if refresh token cookie exists
-      // This is optional - you can remove this if your backend doesn't support it
-      await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/check-refresh`, {
-        withCredentials: true
-      });
+      await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/check-refresh`,
+        { withCredentials: true }
+      );
       return true;
     } catch {
       return false;
@@ -135,22 +167,24 @@ export const AuthProvider = ({ children }) => {
     const restoreSession = async () => {
       try {
         setLoading(true);
-        
-        // Optional: Check if refresh token exists before attempting refresh
-        const hasRefreshToken = await checkRefreshTokenExists();
-        if (!hasRefreshToken) {
-          console.log("No valid refresh token available");
+
+        const storedToken = getAccessToken();
+        if (storedToken) {
+          setAuthToken(storedToken);
+          await getCurrentUser(storedToken);
+          setIsLoggedIn(true);
           return;
         }
 
-        const newToken = await refreshAccessToken();
-        if (newToken) {
-          await getCurrentUser(newToken);
-          setIsLoggedIn(true);
+        const hasRefreshToken = await checkRefreshTokenExists();
+        if (hasRefreshToken) {
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            await getCurrentUser(newToken);
+            setIsLoggedIn(true);
+          }
         }
-      } catch (err) {
-        toast.error(err.message || "Failed to restore session");
-        // Silently handle - user just needs to sign in
+      } catch {
         console.log("No active session or session expired");
       } finally {
         setLoading(false);
@@ -158,7 +192,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     restoreSession();
-  }, []); // Empty dependency array is correct here
+  }, []);
 
   return (
     <AuthContext.Provider

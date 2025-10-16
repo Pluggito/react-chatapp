@@ -15,12 +15,12 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
-import { io } from "socket.io-client";
+import { SocketContext } from "../../context/SocketContext";
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:3050";
+//const SOCKET_URL =
+//  import.meta.env.VITE_SOCKET_URL ||
+//  import.meta.env.VITE_API_BASE_URL ||
+//  "http://localhost:3050";
 
 const ChatList = ({
   onChatSelect,
@@ -34,10 +34,10 @@ const ChatList = ({
   const [alreadyAddedIds, setAlreadyAddedIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const { user, authToken } = useContext(AuthContext);
+  const socket = useContext(SocketContext);
 
   // Start with empty array, we'll load from API
   const [contacts, setContacts] = useState([]);
-  const [socket, setSocket] = useState(null);
 
   // Load user's existing chatrooms on component mount
   useEffect(() => {
@@ -164,44 +164,37 @@ const ChatList = ({
   };
 
   useEffect(() => {
-    if (!user?.id) return;
-    const s = io(SOCKET_URL, {
-      query: { userId: user.id },
-      transports: ["websocket"],
-      withCredentials: true,
-    });
-    setSocket(s);
+    if (!socket || !user?.id) return;
 
-    // Listen for new chatroom created (by you or others)
-    s.on("newChatRoom", (chatRoom) => {
-      // Only add if not already present
-      if (!contacts.some((c) => c.id === chatRoom.id)) {
-        const otherMember = chatRoom.members?.find(
-          (member) => member.userId !== user.id
-        );
-        const otherUser = otherMember?.user;
-        const newContact = {
-          id: chatRoom.id,
-          name: otherUser
-            ? `${otherUser.firstName} ${otherUser.lastName}`
-            : "Unknown User",
-          message: chatRoom.lastMessage?.content || "No messages yet",
-          avatar: otherUser?.avatar || null,
-          time: chatRoom.lastMessage?.createdAt
-            ? new Date(chatRoom.lastMessage.createdAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "New chat",
-          unread: chatRoom.unreadCount || 0,
-          otherUserId: otherUser?.id,
-        };
-        setContacts((prev) => [newContact, ...prev]);
-      }
-    });
+    const handleNewChatRoom = (chatRoom) => {
+      const otherMember = chatRoom.members?.find(
+        (member) => member.userId !== user.id
+      );
+      const otherUser = otherMember?.user;
+      const newContact = {
+        id: chatRoom.id,
+        name: otherUser
+          ? `${otherUser.firstName} ${otherUser.lastName}`
+          : "Unknown User",
+        message: chatRoom.lastMessage?.content || "No messages yet",
+        avatar: otherUser?.avatar || null,
+        time: chatRoom.lastMessage?.createdAt
+          ? new Date(chatRoom.lastMessage.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "New chat",
+        unread: chatRoom.unreadCount || 0,
+        otherUserId: otherUser?.id,
+      };
 
-    // Listen for chat updates (e.g., new messages)
-    s.on("chatUpdated", (updatedChatRoom) => {
+      setContacts((prev) => {
+        if (prev.some((c) => c.id === newContact.id)) return prev;
+        return [newContact, ...prev];
+      });
+    };
+
+    const handleChatUpdated = (updatedChatRoom) => {
       setContacts((prev) =>
         prev.map((contact) =>
           contact.id === updatedChatRoom.id
@@ -222,13 +215,16 @@ const ChatList = ({
             : contact
         )
       );
-    });
+    };
+
+    socket.on("newChatRoom", handleNewChatRoom);
+    socket.on("chatUpdated", handleChatUpdated);
 
     return () => {
-      s.disconnect();
+      socket.off("newChatRoom", handleNewChatRoom);
+      socket.off("chatUpdated", handleChatUpdated);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [socket, user?.id, setContacts]);
 
   return (
     <div className="flex flex-col h-[81dvh] md:h-[78dvh]">
@@ -408,5 +404,6 @@ const ChatList = ({
     </div>
   );
 };
+
 
 export default ChatList;
