@@ -11,15 +11,12 @@ import {
   Mic,
   Smile,
   Send,
+  PlusCircle,
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
 import { SocketContext } from "../context/SocketContext";
-
-//const SOCKET_URL =
-//  import.meta.env.VITE_SOCKET_URL ||
-//  import.meta.env.VITE_API_BASE_URL ||
-//  "http://localhost:3050";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu";
 
 const Chat = ({
   chatId,
@@ -34,8 +31,8 @@ const Chat = ({
   const [loading, setLoading] = useState(false);
   const [chatRoom, setChatRoom] = useState(null);
   const { user, authToken } = useContext(AuthContext);
+  const { socket, joinRoom, leaveRoom, sendMessage: socketSendMessage } = useContext(SocketContext); // ✅ Fixed
   const endRef = useRef(null);
-  const socket = useContext(SocketContext);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,9 +53,7 @@ const Chat = ({
 
         // 1️⃣ Get chatroom details
         const { data: chatRoomData } = await axios.get(
-          `${
-            import.meta.env.VITE_API_BASE_URL
-          }/chatserver/chat/chatrooms/${chatId}`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`
         );
         setChatRoom(chatRoomData);
 
@@ -69,9 +64,7 @@ const Chat = ({
 
         // 2️⃣ Get active members (users in this chatroom)
         const { data: members } = await axios.get(
-          `${
-            import.meta.env.VITE_API_BASE_URL
-          }/chatserver/chat/chatrooms/${chatId}/members`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`
         );
 
         // Filter out current user from active members for display
@@ -82,9 +75,7 @@ const Chat = ({
 
         // 3️⃣ Get messages
         const { data: msgs } = await axios.get(
-          `${
-            import.meta.env.VITE_API_BASE_URL
-          }/chatserver/chat/chatrooms/${chatId}/messages`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`
         );
         setMessages(msgs);
       } catch (err) {
@@ -103,23 +94,32 @@ const Chat = ({
     fetchChatData();
   }, [chatId, user?.id, authToken]);
 
-  // Socket listeners
+  // Socket listeners - ✅ Fixed to use context helpers
   useEffect(() => {
     if (!socket || !chatId) return;
 
-    socket.emit("joinRoom", { chatRoomId: chatId });
+    // console.log("🔗 Joining room:", chatId);
+    joinRoom(chatId); // ✅ Use context helper
 
     const handleNewMessage = (msg) => {
-      setMessages((prev) => [...prev, msg]);
+      // console.log("📨 New message received:", msg);
+      setMessages((prev) => {
+        // Prevent duplicate messages
+        if (prev.some(m => m.id === msg.id)) {
+          return prev;
+        }
+        return [...prev, msg];
+      });
     };
 
     socket.on("newMessage", handleNewMessage);
 
     return () => {
-      socket.emit("leaveRoom", { chatRoomId: chatId });
+      // console.log("🔌 Leaving room:", chatId);
+      leaveRoom(chatId); // ✅ Use context helper
       socket.off("newMessage", handleNewMessage);
     };
-  }, [socket, chatId]);
+  }, [socket, chatId, joinRoom, leaveRoom]);
 
   const sendMessage = async () => {
     if (!text.trim() || !chatId || !user?.id) return;
@@ -127,9 +127,7 @@ const Chat = ({
     try {
       // Send message to backend (persist)
       const { data: newMsg } = await axios.post(
-        `${
-          import.meta.env.VITE_API_BASE_URL
-        }/chatserver/chat/chatrooms/${chatId}/messages`,
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
         { senderId: user.id, content: text.trim() },
         {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -137,15 +135,21 @@ const Chat = ({
         }
       );
 
-      // Emit message via socket for real-time update
+      // console.log("✉️ Sending message via socket:", newMsg);
+
+      // Emit message via socket for real-time update - ✅ Fixed
       if (socket) {
-        socket.emit("sendMessage", {
-          chatRoomId: chatId,
-          message: newMsg,
-        });
+        socketSendMessage(chatId, newMsg); // ✅ Use context helper
       }
 
-      setMessages((prev) => [...prev, newMsg]);
+      // Add to local state (optimistic update)
+      setMessages((prev) => {
+        if (prev.some(m => m.id === newMsg.id)) {
+          return prev;
+        }
+        return [...prev, newMsg];
+      });
+      
       setText("");
     } catch (err) {
       console.error("Error sending message:", err);
@@ -242,7 +246,6 @@ const Chat = ({
 
       {/* Messages */}
       <div className="p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3">
-    
         {messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-white/60 text-sm">
@@ -273,7 +276,6 @@ const Chat = ({
                   </Avatar>
                 )}
 
-
                 {/* Message bubble */}
                 <div className="max-w-[80%] sm:max-w-[65%]">
                   <div
@@ -288,7 +290,6 @@ const Chat = ({
                         src={message.image || "/placeholder.svg"}
                         className="w-full object-cover rounded-lg mb-2 max-h-[160px] sm:max-h-[220px]"
                         alt="attachment"
-                       
                       />
                     )}
                     <p>{message.content || message.text}</p>
@@ -296,11 +297,9 @@ const Chat = ({
 
                   {/* Timestamp */}
                   <span
-
                     className={`text-[10px] text-white/40 mt-1 block ${
                       isOwnMessage ? "text-right pr-1" : "text-left pl-1"
                     }`}
-                     
                   >
                     {new Date(
                       message.createdAt || Date.now()
@@ -317,6 +316,8 @@ const Chat = ({
         <div ref={endRef}></div>
       </div>
 
+
+
       {/* Message Input */}
       <div className="flex border-t border-white/10 items-center mt-auto gap-2 sm:gap-3 p-2 sm:p-3 backdrop-blur-sm bg-white/5">
         {/* Hidden on mobile, shown on larger screens */}
@@ -326,11 +327,34 @@ const Chat = ({
           <Mic className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
         </div>
 
+        {/* Dropdown for mobile */}
+       <DropdownMenu>
+          <DropdownMenuTrigger>
+            <PlusCircle className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors lg:hidden inline" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="bg-black/95 border border-white/20 rounded-lg shadow-lg backdrop-blur-sm">
+            <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <ImageIcon className="w-5 h-5 text-white/80 flex-shrink-0" />
+              <span className="text-sm text-white/90">Photos</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <Camera className="w-5 h-5 text-white/80 flex-shrink-0" />
+              <span className="text-sm text-white/90">Camera</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <Mic className="w-5 h-5 text-white/80 flex-shrink-0" />
+              <span className="text-sm text-white/90">Audio</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+
+
         {/* Shrink width on mobile */}
         <textarea
           className={`${
             isMobile ? "bg-black" : "bg-white/10 backdrop-blur-sm"
-          }flex-grow  border border-white/20 outline-none text-white p-2 sm:p-3 text-sm rounded-full placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[36px] sm:min-h-[40px] max-h-[90px] sm:max-h-[120px] lg:w-[85%] w-full sm:w-[75%]`}
+          } flex-grow border border-white/20 outline-none text-white p-2 sm:p-3 text-sm rounded-full placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[36px] sm:min-h-[40px] max-h-[90px] sm:max-h-[120px] lg:w-[85%] w-full sm:w-[75%]`}
           placeholder="Type a message..."
           value={text}
           onChange={(e) => setText(e.target.value)}

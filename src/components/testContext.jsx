@@ -1,3 +1,97 @@
+// src/context/SocketContext.jsx
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { io } from "socket.io-client";
+import { AuthContext } from "./AuthContext";
+
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:3050";
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const SocketContext = createContext(null);
+
+export const SocketProvider = ({ children }) => {
+  const { user, authToken } = useContext(AuthContext);
+  const [socket, setSocket] = useState(null);
+  const [chatListUpdate, setChatListUpdate] = useState(null);
+
+  useEffect(() => {
+    if (!user || !authToken) return;
+
+    const s = io(SOCKET_URL, {
+      query: { userId: user.id },
+      transports: ["websocket"],
+      withCredentials: true,
+    });
+
+    setSocket(s);
+    console.log("✅ Socket connected for:", user.email);
+
+    s.on("chatListUpdate", (data) => {
+      console.log("🔔 Chat List Update received:", data);
+      setChatListUpdate(data);
+    });
+
+    s.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+    });
+
+    return () => {
+      s.disconnect();
+      setSocket(null);
+    };
+  }, [user, authToken]);
+
+  // ----------------------
+  // Socket Helper Functions
+  // ----------------------
+
+  const joinRoom = useCallback(
+    (chatRoomId) => {
+      if (socket && chatRoomId) {
+        console.log("📥 Joining room:", chatRoomId);
+        socket.emit("joinRoom", { chatRoomId });
+      }
+    },
+    [socket]
+  );
+
+  const leaveRoom = useCallback(
+    (chatRoomId) => {
+      if (socket && chatRoomId) {
+        console.log("📤 Leaving room:", chatRoomId);
+        socket.emit("leaveRoom", { chatRoomId });
+      }
+    },
+    [socket]
+  );
+
+  const sendMessage = useCallback(
+    (chatRoomId, message) => {
+      if (socket && chatRoomId && message) {
+        socket.emit("sendMessage", { chatRoomId, message });
+      }
+    },
+    [socket]
+  );
+
+  return (
+    <SocketContext.Provider
+      value={{
+        socket,
+        chatListUpdate,
+        joinRoom,
+        leaveRoom,
+        sendMessage,
+      }}
+    >
+      {children}
+    </SocketContext.Provider>
+  );
+};
+
+
 "use client";
 
 import { useContext, useState, useEffect } from "react";
@@ -29,7 +123,7 @@ const ChatList = ({
   const [alreadyAddedIds, setAlreadyAddedIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const { user, authToken } = useContext(AuthContext);
-  const { socket, chatListUpdate } = useContext(SocketContext); // ✅ Get chatListUpdate from context
+  const { socket } = useContext(SocketContext); // ✅ socket is destructured properly
 
   const [contacts, setContacts] = useState([]);
 
@@ -142,7 +236,7 @@ const ChatList = ({
     onChatSelect?.(chatId);
   };
 
-  // ✅ HANDLE NEW CHATROOM (Direct socket listener still needed for newChatRoom event)
+  // ✅ SOCKET HANDLERS
   useEffect(() => {
     if (!socket || !user?.id) return;
 
@@ -176,55 +270,40 @@ const ChatList = ({
       );
     };
 
+    // ✅ Update chat list when new messages come in (even outside the chat)
+    const handleChatListUpdate = ({ chatRoomId, message }) => {
+      console.log("📩 chatListUpdate:", { chatRoomId, message });
+
+      setContacts((prev) =>
+        prev.map((contact) =>
+          contact.id === chatRoomId
+            ? {
+                ...contact,
+                message: message?.content || contact.message,
+                time: message?.createdAt
+                  ? new Date(message.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : contact.time,
+                unread:
+                  activeChatRoomId === chatRoomId
+                    ? 0
+                    : (contact.unread || 0) + 1,
+              }
+            : contact
+        )
+      );
+    };
+
     socket.on("newChatRoom", handleNewChatRoom);
+    socket.on("chatListUpdate", handleChatListUpdate);
 
     return () => {
       socket.off("newChatRoom", handleNewChatRoom);
+      socket.off("chatListUpdate", handleChatListUpdate);
     };
-  }, [socket, user?.id]);
-
-  // ✅ HANDLE CHAT LIST UPDATE (Using context's chatListUpdate state)
-  useEffect(() => {
-    if (!chatListUpdate) return;
-
-    const { chatRoomId, message } = chatListUpdate;
-    // console.log("📩 chatListUpdate received in ChatList:", { chatRoomId, message });
-    // console.log("📋 Current contacts:", contacts);
-    // console.log("🎯 Active chat room:", activeChatRoomId);
-
-    setContacts((prev) => {
-      const updated = prev.map((contact) => {
-        if (contact.id === chatRoomId) {
-          // console.log("✅ Updating contact:", contact.name);
-          return {
-            ...contact,
-            message: message?.content || contact.message,
-            time: message?.createdAt
-              ? new Date(message.createdAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : contact.time,
-            unread:
-              activeChatRoomId === chatRoomId
-                ? contact.unread // Don't increment if chat is active
-                : (contact.unread || 0) + 1,
-          };
-        }
-        return contact;
-      });
-      
-      // Move updated chat to top
-      const updatedIndex = updated.findIndex(c => c.id === chatRoomId);
-      if (updatedIndex > 0) {
-        const [movedChat] = updated.splice(updatedIndex, 1);
-        updated.unshift(movedChat);
-      }
-      
-      // console.log("📊 Updated contacts:", updated);
-      return updated;
-    });
-  }, [chatListUpdate]);
+  }, [socket, user?.id, activeChatRoomId]);
 
   return (
     <div className="flex flex-col h-[81dvh] md:h-[78dvh]">
@@ -382,7 +461,7 @@ const ChatList = ({
                         {chat.message}
                       </p>
                       {chat.unread > 0 && (
-                        <span className="bg-white text-black text-xs rounded-full px-2 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center flex-shrink-0 font-medium">
+                        <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center flex-shrink-0 font-medium">
                           {chat.unread > 99 ? "99+" : chat.unread}
                         </span>
                       )}

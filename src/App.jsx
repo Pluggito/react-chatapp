@@ -14,7 +14,7 @@ const App = () => {
   const { user, isLoggedIn } = useContext(AuthContext)
   const [activeChatRoomId, setActiveChatRoomId] = useState(null)
   const [activeMembers, setActiveMembers] = useState([])
-  const syncUser = user
+  const syncUser = true
   const [openDetail, setOpenDetail] = useState(false)
   const [mobileView, setMobileView] = useState("list") // 'list' or 'chat'
 
