@@ -1,147 +1,185 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef, useContext } from "react"
-import axios from "axios"
-import EmojiPicker from "emoji-picker-react"
-import { Phone, ArrowLeft, Video, Info, ImageIcon, Camera, Mic, Smile, Send, PlusCircle } from "lucide-react"
-import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar"
-import { AuthContext } from "../context/AuthContext"
-import { SocketContext } from "../context/SocketContext"
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu"
+import { useState, useEffect, useRef, useContext } from "react";
+import axios from "axios";
+import EmojiPicker from "emoji-picker-react";
+import {
+  Phone,
+  ArrowLeft,
+  Video,
+  Info,
+  ImageIcon,
+  Camera,
+  Mic,
+  Smile,
+  Send,
+  PlusCircle,
+} from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
+import { AuthContext } from "../context/AuthContext";
+import { SocketContext } from "../context/SocketContext";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./ui/dropdown-menu";
 // eslint-disable-next-line no-unused-vars
-import { motion, AnimatePresence } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion";
+import { Spinner } from "./ui/spinner";
 
 // Mark motion as used for linters that don't recognize JSX usage
 // void motion
 
-const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList }) => {
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState("")
-  const [messages, setMessages] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [chatRoom, setChatRoom] = useState(null)
-  const { user, authToken } = useContext(AuthContext)
-  const { socket, joinRoom, leaveRoom, sendMessage: socketSendMessage } = useContext(SocketContext)
-  const endRef = useRef(null)
+const Chat = ({
+  chatId,
+  activeMembers,
+  setActiveMembers,
+  isMobile,
+  onBackToList,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [chatRoom, setChatRoom] = useState(null);
+  const { user, authToken } = useContext(AuthContext);
+  const {
+    socket,
+    joinRoom,
+    leaveRoom,
+    sendMessage: socketSendMessage,
+  } = useContext(SocketContext);
+  const endRef = useRef(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleEmoji = (e) => {
-    setText((prev) => prev + e.emoji)
-    setOpen(false)
-  }
+    setText((prev) => prev + e.emoji);
+    setOpen(false);
+  };
 
   // Fetch chatroom, active members & messages
   useEffect(() => {
-    if (!chatId || !user?.id || !authToken) return
+    if (!chatId || !user?.id || !authToken) return;
 
     const fetchChatData = async () => {
       try {
-        setLoading(true)
+        setLoading(true);
 
         const { data: chatRoomData } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`,
-        )
-        setChatRoom(chatRoomData)
+          `${
+            import.meta.env.VITE_API_BASE_URL
+          }/chatserver/chat/chatrooms/${chatId}`
+        );
+        setChatRoom(chatRoomData);
 
         if (chatRoomData.id !== chatId) {
-          console.warn("Chatroom ID mismatch!")
-          return
+          console.warn("Chatroom ID mismatch!");
+          return;
         }
 
         const { data: members } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`,
-        )
+          `${
+            import.meta.env.VITE_API_BASE_URL
+          }/chatserver/chat/chatrooms/${chatId}/members`
+        );
 
-        const otherMembers = members.filter((member) => member.userId !== user.id)
-        setActiveMembers(otherMembers)
+        const otherMembers = members.filter(
+          (member) => member.userId !== user.id
+        );
+        setActiveMembers(otherMembers);
 
         const { data: msgs } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
-        )
-        setMessages(msgs)
+          `${
+            import.meta.env.VITE_API_BASE_URL
+          }/chatserver/chat/chatrooms/${chatId}/messages`
+        );
+        setMessages(msgs);
       } catch (err) {
-        console.error("Error loading chat data:", err)
+        console.error("Error loading chat data:", err);
         if (err.response?.status === 404 || err.response?.status === 403) {
-          setMessages([])
-          setActiveMembers([])
-          setChatRoom(null)
+          setMessages([]);
+          setActiveMembers([]);
+          setChatRoom(null);
         }
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchChatData()
-  }, [chatId, user?.id, authToken])
+    fetchChatData();
+  }, [chatId, user?.id, authToken]);
 
   // Socket listeners - ✅ Fixed to use context helpers
   useEffect(() => {
-    if (!socket || !chatId) return
+    if (!socket || !chatId) return;
 
-    joinRoom(chatId)
+    joinRoom(chatId);
 
     const handleNewMessage = (msg) => {
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) {
-          return prev
+          return prev;
         }
-        return [...prev, msg]
-      })
-    }
+        return [...prev, msg];
+      });
+    };
 
-    socket.on("newMessage", handleNewMessage)
+    socket.on("newMessage", handleNewMessage);
 
     return () => {
-      leaveRoom(chatId)
-      socket.off("newMessage", handleNewMessage)
-    }
-  }, [socket, chatId, joinRoom, leaveRoom])
+      leaveRoom(chatId);
+      socket.off("newMessage", handleNewMessage);
+    };
+  }, [socket, chatId, joinRoom, leaveRoom]);
 
   const sendMessage = async () => {
-    if (!text.trim() || !chatId || !user?.id) return
+    if (!text.trim() || !chatId || !user?.id) return;
 
     try {
       const { data: newMsg } = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+        `${
+          import.meta.env.VITE_API_BASE_URL
+        }/chatserver/chat/chatrooms/${chatId}/messages`,
         { senderId: user.id, content: text.trim() },
         {
           headers: { Authorization: `Bearer ${authToken}` },
           withCredentials: true,
-        },
-      )
+        }
+      );
 
       if (socket) {
-        socketSendMessage(chatId, newMsg)
+        socketSendMessage(chatId, newMsg);
       }
 
       setMessages((prev) => {
         if (prev.some((m) => m.id === newMsg.id)) {
-          return prev
+          return prev;
         }
-        return [...prev, newMsg]
-      })
+        return [...prev, newMsg];
+      });
 
-      setText("")
+      setText("");
     } catch (err) {
-      console.error("Error sending message:", err)
+      console.error("Error sending message:", err);
     }
-  }
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
+      e.preventDefault();
+      sendMessage();
     }
-  }
+  };
 
   const messageVariants = {
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -10 },
-  }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -151,19 +189,20 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
         staggerChildren: 0.05,
       },
     },
-  }
+  };
 
   if (loading) {
     return (
       <motion.div
-        className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
+        className="flex-1 h-full flex items-center justify-center gap-2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
+        <Spinner className="w-5 h-5 text-white/60" />
         <div className="text-white/60">Loading chat...</div>
       </motion.div>
-    )
+    );
   }
 
   if (!chatId) {
@@ -179,7 +218,7 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
           <p>Select a conversation to start messaging</p>
         </div>
       </motion.div>
-    )
+    );
   }
 
   return (
@@ -208,7 +247,9 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
 
           {activeMembers[0] && (
             <Avatar className="w-8 h-8 sm:w-10 sm:h-10 ring-1 ring-white/20">
-              <AvatarImage src={activeMembers[0].user?.avatar || "/placeholder.svg"} />
+              <AvatarImage
+                src={activeMembers[0].user?.avatar || "/placeholder.svg"}
+              />
               <AvatarFallback className="bg-white/10 text-white text-xs font-medium">
                 {activeMembers[0].user?.firstName?.[0] || "U"}
                 {activeMembers[0].user?.lastName?.[0] || ""}
@@ -219,10 +260,19 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
           <div className="flex flex-col leading-tight">
             <span className="text-sm sm:text-base font-medium text-white truncate max-w-[120px] sm:max-w-[160px]">
               {activeMembers.length > 0
-                ? activeMembers.map((m) => `${m.user?.firstName || "Unknown"} ${m.user?.lastName || "User"}`).join(", ")
+                ? activeMembers
+                    .map(
+                      (m) =>
+                        `${m.user?.firstName || "Unknown"} ${
+                          m.user?.lastName || "User"
+                        }`
+                    )
+                    .join(", ")
                 : "Loading..."}
             </span>
-            <p className="text-[11px] sm:text-xs text-green-400 font-medium">Online</p>
+            <p className="text-[11px] sm:text-xs text-green-400 font-medium">
+              Online
+            </p>
           </div>
         </div>
 
@@ -262,17 +312,21 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
             </motion.div>
           ) : (
             messages.map((message) => {
-              const isOwnMessage = message.senderId === user?.id
+              const isOwnMessage = message.senderId === user?.id;
               return (
                 <motion.div
                   key={message.id}
                   variants={messageVariants}
                   layout
-                  className={`flex items-end gap-2 ${isOwnMessage ? "justify-end" : "justify-start"}`}
+                  className={`flex items-end gap-2 ${
+                    isOwnMessage ? "justify-end" : "justify-start"
+                  }`}
                 >
                   {!isOwnMessage && (
                     <Avatar className="w-6 h-6 ring-1 ring-white/10 flex-shrink-0">
-                      <AvatarImage src={message.sender?.avatar || "/placeholder.svg"} />
+                      <AvatarImage
+                        src={message.sender?.avatar || "/placeholder.svg"}
+                      />
                       <AvatarFallback className="bg-white/10 text-white text-xs font-medium">
                         {message.sender?.firstName?.[0] || "U"}
                         {message.sender?.lastName?.[0] || ""}
@@ -280,7 +334,10 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
                     </Avatar>
                   )}
 
-                  <motion.div className="max-w-[80%] sm:max-w-[65%]" whileHover={{ scale: 1.02 }}>
+                  <motion.div
+                    className="max-w-[80%] sm:max-w-[65%]"
+                    whileHover={{ scale: 1.02 }}
+                  >
                     <div
                       className={`px-3 py-2 rounded-2xl text-sm leading-snug whitespace-pre-wrap break-words border transition-all duration-200 ${
                         isOwnMessage
@@ -303,14 +360,16 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
                         isOwnMessage ? "text-right pr-1" : "text-left pl-1"
                       }`}
                     >
-                      {new Date(message.createdAt || Date.now()).toLocaleTimeString([], {
+                      {new Date(
+                        message.createdAt || Date.now()
+                      ).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </span>
                   </motion.div>
                 </motion.div>
-              )
+              );
             })
           )}
         </AnimatePresence>
@@ -321,7 +380,11 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
       <div className="flex border-t border-white/10 items-center mt-auto gap-2 sm:gap-3 p-2 sm:p-3 backdrop-blur-sm bg-white/5">
         <div className="hidden lg:flex gap-2 sm:gap-3">
           {[ImageIcon, Camera, Mic].map((Icon, idx) => (
-            <motion.button key={idx} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+            <motion.button
+              key={idx}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+            >
               <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
             </motion.button>
           ))}
@@ -364,7 +427,11 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
         />
 
         <div className="relative">
-          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setOpen(!open)}>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setOpen(!open)}
+          >
             <Smile className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
           </motion.button>
           <AnimatePresence>
@@ -394,7 +461,7 @@ const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList 
         </motion.button>
       </div>
     </motion.div>
-  )
-}
+  );
+};
 
-export default Chat
+export default Chat;

@@ -1,487 +1,397 @@
-// src/context/SocketContext.jsx
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { io } from "socket.io-client";
-import { AuthContext } from "./AuthContext";
+"use client"
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:3050";
+import { useState, useEffect, useRef, useContext } from "react"
+import axios from "axios"
+import EmojiPicker from "emoji-picker-react"
+import { Phone, ArrowLeft, Video, Info, ImageIcon, Camera, Mic, Smile, Send, PlusCircle } from "lucide-react"
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar"
+import { AuthContext } from "../context/AuthContext"
+import { SocketContext } from "../context/SocketContext"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu"
+// eslint-disable-next-line no-unused-vars
+import { motion, AnimatePresence } from "framer-motion"
 
-// eslint-disable-next-line react-refresh/only-export-components
-export const SocketContext = createContext(null);
-
-export const SocketProvider = ({ children }) => {
-  const { user, authToken } = useContext(AuthContext);
-  const [socket, setSocket] = useState(null);
-  const [chatListUpdate, setChatListUpdate] = useState(null);
+const Chat = ({ chatId, activeMembers, setActiveMembers, isMobile, onBackToList }) => {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState("")
+  const [messages, setMessages] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [chatRoom, setChatRoom] = useState(null)
+  const { user, authToken } = useContext(AuthContext)
+  const { socket, joinRoom, leaveRoom, sendMessage: socketSendMessage } = useContext(SocketContext)
+  const endRef = useRef(null)
 
   useEffect(() => {
-    if (!user || !authToken) return;
+    endRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
-    const s = io(SOCKET_URL, {
-      query: { userId: user.id },
-      transports: ["websocket"],
-      withCredentials: true,
-    });
+  const handleEmoji = (e) => {
+    setText((prev) => prev + e.emoji)
+    setOpen(false)
+  }
 
-    setSocket(s);
-    console.log("✅ Socket connected for:", user.email);
-
-    s.on("chatListUpdate", (data) => {
-      console.log("🔔 Chat List Update received:", data);
-      setChatListUpdate(data);
-    });
-
-    s.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-    });
-
-    return () => {
-      s.disconnect();
-      setSocket(null);
-    };
-  }, [user, authToken]);
-
-  // ----------------------
-  // Socket Helper Functions
-  // ----------------------
-
-  const joinRoom = useCallback(
-    (chatRoomId) => {
-      if (socket && chatRoomId) {
-        console.log("📥 Joining room:", chatRoomId);
-        socket.emit("joinRoom", { chatRoomId });
-      }
-    },
-    [socket]
-  );
-
-  const leaveRoom = useCallback(
-    (chatRoomId) => {
-      if (socket && chatRoomId) {
-        console.log("📤 Leaving room:", chatRoomId);
-        socket.emit("leaveRoom", { chatRoomId });
-      }
-    },
-    [socket]
-  );
-
-  const sendMessage = useCallback(
-    (chatRoomId, message) => {
-      if (socket && chatRoomId && message) {
-        socket.emit("sendMessage", { chatRoomId, message });
-      }
-    },
-    [socket]
-  );
-
-  return (
-    <SocketContext.Provider
-      value={{
-        socket,
-        chatListUpdate,
-        joinRoom,
-        leaveRoom,
-        sendMessage,
-      }}
-    >
-      {children}
-    </SocketContext.Provider>
-  );
-};
-
-
-"use client";
-
-import { useContext, useState, useEffect } from "react";
-import { Plus, Minus, SearchIcon } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "../ui/dialog";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import axios from "axios";
-import { AuthContext } from "../../context/AuthContext";
-import { SocketContext } from "../../context/SocketContext";
-
-const ChatList = ({
-  onChatSelect,
-  setActiveChatRoomId,
-  activeChatRoomId,
-  isMobile,
-}) => {
-  const [addMode, setAddMode] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [alreadyAddedIds, setAlreadyAddedIds] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const { user, authToken } = useContext(AuthContext);
-  const { socket } = useContext(SocketContext); // ✅ socket is destructured properly
-
-  const [contacts, setContacts] = useState([]);
-
-  // Load user's chatrooms
+  // Fetch chatroom, active members & messages
   useEffect(() => {
-    if (user?.id && authToken) {
-      loadUserChatrooms();
-    }
-  }, [user?.id, authToken]);
+    if (!chatId || !user?.id || !authToken) return
 
-  const loadUserChatrooms = async () => {
-    try {
-      setLoading(true);
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`
-      );
+    const fetchChatData = async () => {
+      try {
+        setLoading(true)
 
-      const formattedContacts = res.data.map((chatroom) => {
-        const otherMember = chatroom.members?.find(
-          (member) => member.userId !== user.id
-        );
-        const otherUser = otherMember?.user;
-
-        return {
-          id: chatroom.id,
-          name: otherUser
-            ? `${otherUser.firstName} ${otherUser.lastName}`
-            : "Unknown User",
-          message: chatroom.lastMessage?.content || "No messages yet",
-          avatar: otherUser?.avatar || null,
-          time: chatroom.lastMessage?.createdAt
-            ? new Date(chatroom.lastMessage.createdAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "New chat",
-          unread: chatroom.unreadCount || 0,
-          otherUserId: otherUser?.id,
-        };
-      });
-
-      setContacts(formattedContacts);
-    } catch (err) {
-      console.error("Error loading chatrooms:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getUserBySearch = async () => {
-    if (!searchInput.trim()) return;
-
-    try {
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/users/search`,
-        { params: { search: searchInput } }
-      );
-      setSearchResults(res.data);
-    } catch (err) {
-      console.error("Error in searching user", err);
-      setSearchResults([]);
-    }
-  };
-
-  const handleAddUser = async (selectedUser) => {
-    try {
-      const existingChat = contacts.find(
-        (contact) => contact.otherUserId === selectedUser.id
-      );
-
-      if (existingChat) {
-        setActiveChatRoomId(existingChat.id);
-        onChatSelect?.(existingChat.id);
-        setAddMode(false);
-        return;
-      }
-
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms`,
-        { currentUserId: user.id, otherUserId: selectedUser.id },
-        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
-      );
-
-      const chatRoom = res.data;
-
-      const newContact = {
-        id: chatRoom.id,
-        name: `${selectedUser.firstName} ${selectedUser.lastName}`,
-        message: "New chat started...",
-        avatar: selectedUser.avatar || null,
-        time: "Just now",
-        unread: 0,
-        otherUserId: selectedUser.id,
-      };
-
-      setContacts((prev) => [newContact, ...prev]);
-      setActiveChatRoomId(chatRoom.id);
-      onChatSelect?.(chatRoom.id);
-      setAlreadyAddedIds((prev) => [...prev, selectedUser.id]);
-      setAddMode(false);
-      setSearchInput("");
-      setSearchResults([]);
-    } catch (err) {
-      console.error("Error creating chat room", err);
-    }
-  };
-
-  const handleChatClick = (chatId) => {
-    setActiveChatRoomId(chatId);
-    onChatSelect?.(chatId);
-  };
-
-  // ✅ SOCKET HANDLERS
-  useEffect(() => {
-    if (!socket || !user?.id) return;
-
-    const handleNewChatRoom = (chatRoom) => {
-      const otherMember = chatRoom.members?.find(
-        (member) => member.userId !== user.id
-      );
-      const otherUser = otherMember?.user;
-
-      const newContact = {
-        id: chatRoom.id,
-        name: otherUser
-          ? `${otherUser.firstName} ${otherUser.lastName}`
-          : "Unknown User",
-        message: chatRoom.lastMessage?.content || "No messages yet",
-        avatar: otherUser?.avatar || null,
-        time: chatRoom.lastMessage?.createdAt
-          ? new Date(chatRoom.lastMessage.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "New chat",
-        unread: chatRoom.unreadCount || 0,
-        otherUserId: otherUser?.id,
-      };
-
-      setContacts((prev) =>
-        prev.some((c) => c.id === newContact.id)
-          ? prev
-          : [newContact, ...prev]
-      );
-    };
-
-    // ✅ Update chat list when new messages come in (even outside the chat)
-    const handleChatListUpdate = ({ chatRoomId, message }) => {
-      console.log("📩 chatListUpdate:", { chatRoomId, message });
-
-      setContacts((prev) =>
-        prev.map((contact) =>
-          contact.id === chatRoomId
-            ? {
-                ...contact,
-                message: message?.content || contact.message,
-                time: message?.createdAt
-                  ? new Date(message.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : contact.time,
-                unread:
-                  activeChatRoomId === chatRoomId
-                    ? 0
-                    : (contact.unread || 0) + 1,
-              }
-            : contact
+        const { data: chatRoomData } = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`,
         )
-      );
-    };
+        setChatRoom(chatRoomData)
 
-    socket.on("newChatRoom", handleNewChatRoom);
-    socket.on("chatListUpdate", handleChatListUpdate);
+        if (chatRoomData.id !== chatId) {
+          console.warn("Chatroom ID mismatch!")
+          return
+        }
+
+        const { data: members } = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`,
+        )
+
+        const otherMembers = members.filter((member) => member.userId !== user.id)
+        setActiveMembers(otherMembers)
+
+        const { data: msgs } = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+        )
+        setMessages(msgs)
+      } catch (err) {
+        console.error("Error loading chat data:", err)
+        if (err.response?.status === 404 || err.response?.status === 403) {
+          setMessages([])
+          setActiveMembers([])
+          setChatRoom(null)
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchChatData()
+  }, [chatId, user?.id, authToken])
+
+  // Socket listeners - ✅ Fixed to use context helpers
+  useEffect(() => {
+    if (!socket || !chatId) return
+
+    joinRoom(chatId)
+
+    const handleNewMessage = (msg) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) {
+          return prev
+        }
+        return [...prev, msg]
+      })
+    }
+
+    socket.on("newMessage", handleNewMessage)
 
     return () => {
-      socket.off("newChatRoom", handleNewChatRoom);
-      socket.off("chatListUpdate", handleChatListUpdate);
-    };
-  }, [socket, user?.id, activeChatRoomId]);
+      leaveRoom(chatId)
+      socket.off("newMessage", handleNewMessage)
+    }
+  }, [socket, chatId, joinRoom, leaveRoom])
+
+  const sendMessage = async () => {
+    if (!text.trim() || !chatId || !user?.id) return
+
+    try {
+      const { data: newMsg } = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+        { senderId: user.id, content: text.trim() },
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+          withCredentials: true,
+        },
+      )
+
+      if (socket) {
+        socketSendMessage(chatId, newMsg)
+      }
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMsg.id)) {
+          return prev
+        }
+        return [...prev, newMsg]
+      })
+
+      setText("")
+    } catch (err) {
+      console.error("Error sending message:", err)
+    }
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const messageVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+  }
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05,
+      },
+    },
+  }
+
+  if (loading) {
+    return (
+      <motion.div
+        className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="text-white/60">Loading chat...</div>
+      </motion.div>
+    )
+  }
+
+  if (!chatId) {
+    return (
+      <motion.div
+        className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <div className="text-center text-white/60">
+          <h3 className="text-lg font-medium mb-2">Welcome to Chat</h3>
+          <p>Select a conversation to start messaging</p>
+        </div>
+      </motion.div>
+    )
+  }
 
   return (
-    <div className="flex flex-col h-[81dvh] md:h-[78dvh]">
-      {/* Top bar (search + add button) */}
-      <div className="flex items-center justify-between p-3 gap-2 border-b border-white/10">
-        <div
-          className={`flex-1 flex items-center ${
-            isMobile ? "bg-black" : "bg-white/5 backdrop-blur-lg"
-          } shadow-lg border border-white/10 rounded-xl gap-3 h-10 px-3`}
-        >
-          <SearchIcon className="text-white/60" />
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            className="w-full outline-none border-none text-sm bg-transparent text-white placeholder-white/60"
-          />
-        </div>
-        <Dialog open={addMode} onOpenChange={setAddMode}>
-          <DialogTrigger asChild>
-            <button className="w-8 h-8 md:w-10 md:h-10 bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-colors">
-              {addMode ? (
-                <Minus className="w-4 h-4 md:w-5 md:h-5 text-white" />
-              ) : (
-                <Plus className="w-4 h-4 md:w-5 md:h-5 text-white" />
-              )}
-            </button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md bg-white/10 backdrop-blur-lg">
-            <DialogHeader>
-              <DialogTitle className="text-white">Add New Chat</DialogTitle>
-              <DialogDescription className="text-white/60">
-                Search for a user to start a conversation with.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Input
-                  id="name"
-                  placeholder="Jane Doe"
-                  className="col-span-3 text-white"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && getUserBySearch()}
-                />
-                <Button
-                  variant={"ghost"}
-                  onClick={getUserBySearch}
-                  className="text-white"
-                >
-                  Search
-                </Button>
-              </div>
-            </div>
-            <div className="px-4 space-y-2 max-h-60 overflow-y-auto">
-              {Array.isArray(searchResults) && searchResults.length > 0 ? (
-                searchResults
-                  .filter((u) => u.id !== user.id)
-                  .map((u) => {
-                    const isAlreadyAdded =
-                      contacts.some(
-                        (contact) => contact.otherUserId === u.id
-                      ) || alreadyAddedIds.includes(u.id);
+    <motion.div
+      className={`${
+        isMobile ? "bg-black" : "bg-black/20 backdrop-blur-md"
+      } flex-1 h-full flex flex-col justify-between border-l border-r border-white/10`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Chat Header */}
+      <div className="flex flex-col sm:flex-row p-2 sm:p-3 justify-between items-start sm:items-center gap-2 sm:gap-0 border-b border-white/10 backdrop-blur-sm">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {isMobile && onBackToList && (
+            <motion.button
+              onClick={onBackToList}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <ArrowLeft className="w-5 h-5 text-white" />
+            </motion.button>
+          )}
 
-                    return (
-                      <div
-                        key={u.id}
-                        className="flex items-center justify-between py-2 border-b border-white/10"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-9 h-9 md:w-11 md:h-11 flex-shrink-0">
-                            <AvatarImage
-                              src={u.avatar}
-                              alt={`${u.firstName} ${u.lastName}`}
-                            />
-                            <AvatarFallback className="bg-white/10 text-white font-medium text-sm md:text-base">
-                              {u.firstName?.[0]}
-                              {u.lastName?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <h2 className="font-medium text-white text-sm md:text-lg truncate">
-                              {u.firstName} {u.lastName}
-                            </h2>
-                            <span className="text-xs text-gray-400">
-                              @{u.username}
-                            </span>
-                          </div>
-                        </div>
-                        {isAlreadyAdded ? (
-                          <span className="text-green-500 text-sm font-medium">
-                            Added
-                          </span>
-                        ) : (
-                          <Button onClick={() => handleAddUser(u)} size="sm">
-                            Add User
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })
-              ) : searchInput && searchResults.length === 0 ? (
-                <p className="text-white text-sm">No users found</p>
-              ) : (
-                <p className="text-white/60 text-sm">
-                  Enter a name to search for users
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+          {activeMembers[0] && (
+            <Avatar className="w-8 h-8 sm:w-10 sm:h-10 ring-1 ring-white/20 flex-shrink-0">
+              <AvatarImage src={activeMembers[0].user?.avatar || "/placeholder.svg"} />
+              <AvatarFallback className="bg-white/10 text-white text-xs font-medium">
+                {activeMembers[0].user?.firstName?.[0] || "U"}
+                {activeMembers[0].user?.lastName?.[0] || ""}
+              </AvatarFallback>
+            </Avatar>
+          )}
+
+          <div className="flex flex-col leading-tight min-w-0 flex-1">
+            <span className="text-xs sm:text-sm md:text-base font-medium text-white truncate">
+              {activeMembers.length > 0
+                ? activeMembers.map((m) => `${m.user?.firstName || "Unknown"} ${m.user?.lastName || "User"}`).join(", ")
+                : "Loading..."}
+            </span>
+            <p className="text-[10px] sm:text-xs text-green-400 font-medium">Online</p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {[Phone, Video, Info].map((Icon, idx) => (
+            <motion.button
+              key={idx}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="transition-colors"
+            >
+              <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
+            </motion.button>
+          ))}
+        </div>
       </div>
 
-      {/* Chat list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scroll-smooth scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30">
-        {loading ? (
-          <div className="p-4 text-center text-white/60">Loading chats...</div>
-        ) : (
-          <div className="p-4 space-y-2">
-            {contacts.length > 0 ? (
-              contacts.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`flex justify-between items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors group ${
-                    activeChatRoomId === chat.id
-                      ? "bg-white/10 border-l-4 border-blue-500"
-                      : "hover:bg-white/5"
-                  }`}
-                  onClick={() => handleChatClick(chat.id)}
+      {/* Messages */}
+      <motion.div
+        className="p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <AnimatePresence mode="popLayout">
+          {messages.length === 0 ? (
+            <motion.div
+              className="flex-1 flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <div className="text-center text-white/60 text-xs sm:text-sm px-4">
+                <p>No messages yet</p>
+                <p className="text-[10px] sm:text-xs">Start the conversation!</p>
+              </div>
+            </motion.div>
+          ) : (
+            messages.map((message) => {
+              const isOwnMessage = message.senderId === user?.id
+              return (
+                <motion.div
+                  key={message.id}
+                  variants={messageVariants}
+                  layout
+                  className={`flex items-end gap-2 ${isOwnMessage ? "justify-end" : "justify-start"}`}
                 >
-                  <div>
-                    <Avatar className="h-12 w-12 flex-shrink-0">
-                      <AvatarImage
-                        src={chat.avatar || "/placeholder.svg"}
-                        alt={chat.name}
-                      />
-                      <AvatarFallback className="bg-gray-700 text-white font-medium">
-                        {chat.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
+                  {!isOwnMessage && (
+                    <Avatar className="w-6 h-6 ring-1 ring-white/10 flex-shrink-0">
+                      <AvatarImage src={message.sender?.avatar || "/placeholder.svg"} />
+                      <AvatarFallback className="bg-white/10 text-white text-xs font-medium">
+                        {message.sender?.firstName?.[0] || "U"}
+                        {message.sender?.lastName?.[0] || ""}
                       </AvatarFallback>
                     </Avatar>
-                  </div>
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium text-white truncate text-sm">
-                        {chat.name}
-                      </h3>
-                      <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                        {chat.time}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-gray-300 truncate pr-2">
-                        {chat.message}
-                      </p>
-                      {chat.unread > 0 && (
-                        <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center flex-shrink-0 font-medium">
-                          {chat.unread > 99 ? "99+" : chat.unread}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-white/60 py-8">
-                <p>No chats yet</p>
-                <p className="text-sm">
-                  Click the + button to start a conversation
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+                  )}
 
-export default ChatList;
+                  <motion.div className="max-w-[85%] sm:max-w-[70%] md:max-w-[65%]" whileHover={{ scale: 1.02 }}>
+                    <div
+                      className={`px-3 py-2 rounded-2xl text-xs sm:text-sm leading-snug whitespace-pre-wrap break-words border transition-all duration-200 ${
+                        isOwnMessage
+                          ? "bg-[#2a2a2a]/90 text-white border-white/20 rounded-br-sm ml-auto hover:bg-[#333333] hover:border-white/30"
+                          : "bg-[#1b1b1b]/90 text-white border-white/10 rounded-bl-sm hover:bg-[#242424] hover:border-white/20"
+                      }`}
+                    >
+                      {message.image && (
+                        <img
+                          src={message.image || "/placeholder.svg"}
+                          className="w-full object-cover rounded-lg mb-2 max-h-[120px] sm:max-h-[160px] md:max-h-[220px]"
+                          alt="attachment"
+                        />
+                      )}
+                      <p>{message.content || message.text}</p>
+                    </div>
+
+                    <span
+                      className={`text-[9px] sm:text-[10px] text-white/40 mt-1 block ${
+                        isOwnMessage ? "text-right pr-1" : "text-left pl-1"
+                      }`}
+                    >
+                      {new Date(message.createdAt || Date.now()).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </motion.div>
+                </motion.div>
+              )
+            })
+          )}
+        </AnimatePresence>
+        <div ref={endRef} />
+      </motion.div>
+
+      {/* Message Input */}
+      <div className="flex flex-col sm:flex-row border-t border-white/10 items-center mt-auto gap-2 p-2 sm:gap-3 sm:p-3 backdrop-blur-sm bg-white/5">
+        <div className="hidden lg:flex gap-2 sm:gap-3">
+          {[ImageIcon, Camera, Mic].map((Icon, idx) => (
+            <motion.button key={idx} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+            </motion.button>
+          ))}
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <PlusCircle className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors lg:hidden inline flex-shrink-0" />
+            </motion.div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="bg-black/95 border border-white/20 rounded-lg shadow-lg backdrop-blur-sm">
+            <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <ImageIcon className="w-5 h-5 text-white/80 flex-shrink-0" />
+              <span className="text-sm text-white/90">Photos</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <Camera className="w-5 h-5 text-white/80 flex-shrink-0" />
+              <span className="text-sm text-white/90">Camera</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <Mic className="w-5 h-5 text-white/80 flex-shrink-0" />
+              <span className="text-sm text-white/90">Audio</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <textarea
+          className={`${
+            isMobile ? "bg-black" : "bg-white/10 backdrop-blur-sm"
+          } flex-grow border border-white/20 outline-none text-white p-2 sm:p-3 text-xs sm:text-sm rounded-full placeholder-white/50 focus:border-white/40 transition-colors resize-none min-h-[32px] sm:min-h-[36px] md:min-h-[40px] max-h-[80px] sm:max-h-[90px] md:max-h-[120px] w-full`}
+          placeholder="Type a message..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyPress}
+          rows={1}
+          style={{
+            fontSize: window.innerWidth < 640 ? "14px" : undefined,
+          }}
+        />
+
+        <div className="relative flex-shrink-0">
+          <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => setOpen(!open)}>
+            <Smile className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+          </motion.button>
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                className="absolute bottom-12 -right-14 sm:right-0 z-50 max-w-[90vw] sm:max-w-xs"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                <EmojiPicker onEmojiClick={handleEmoji} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <motion.button
+          onClick={sendMessage}
+          disabled={!text.trim()}
+          className="bg-white hover:bg-black hover:text-white ease-in text-black py-2 px-3 sm:px-4 rounded-xl cursor-pointer transition-colors flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm flex-shrink-0"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Send className="w-4 h-4" />
+          <span className="hidden sm:inline">Send</span>
+        </motion.button>
+      </div>
+    </motion.div>
+  )
+}
+
+export default Chat
