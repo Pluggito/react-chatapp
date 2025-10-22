@@ -30,7 +30,7 @@ const App = () => {
   }
 
   return (
-    <div className="bg-black min-h-screen flex items-center justify-center text-white overflow-hidden p-2 md:p-4">
+    <div className="bg-black min-h-screen flex items-center justify-center text-white overflow-hidden px-2 md:p-4">
       <Toaster />
 
       <Routes>
