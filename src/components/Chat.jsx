@@ -17,6 +17,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
 import { SocketContext } from "../context/SocketContext";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu";
+import { motion, AnimatePresence } from "framer-motion";
 
 const Chat = ({
   chatId,
@@ -158,44 +159,76 @@ const Chat = ({
     }
   };
 
-  // Show loading state
+  const messageVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05,
+      },
+    },
+  };
+
+  // Show loading state with animation
   if (loading) {
     return (
-      <div className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20">
+      <motion.div 
+        className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
         <div className="text-white/60">Loading chat...</div>
-      </div>
+      </motion.div>
     );
   }
 
   // Show empty state when no chat is selected
   if (!chatId) {
     return (
-      <div className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20">
+      <motion.div 
+        className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
         <div className="text-center text-white/60">
           <h3 className="text-lg font-medium mb-2">Welcome to Chat</h3>
           <p>Select a conversation to start messaging</p>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div
+    <motion.div
       className={`${
         isMobile ? "bg-black h-screen" : "bg-black/20 backdrop-blur-md h-full"
       } flex flex-col border-l border-r border-white/10 overflow-hidden`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
     >
       {/* Chat Header - FIXED HEIGHT */}
       <div className={`${isMobile && "fixed w-full z-10"} flex-shrink-0 flex p-2 sm:p-3 justify-between items-center border-b border-white/10 backdrop-blur-sm`}>
         <div className="flex items-center gap-2">
           {/* Back button (mobile only) */}
           {isMobile && onBackToList && (
-            <button
+            <motion.button
               onClick={onBackToList}
               className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
             >
               <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
+            </motion.button>
           )}
 
           {/* Avatar */}
@@ -233,97 +266,128 @@ const Chat = ({
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          <Phone className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
-          <Video className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
-          <Info className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
+          {[Phone, Video, Info].map((Icon, idx) => (
+            <motion.button
+              key={idx}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="transition-colors"
+            >
+              <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white" />
+            </motion.button>
+          ))}
         </div>
       </div>
 
       {/* Messages - SCROLLABLE SECTION */}
-      <section className={`${isMobile && "pt-16"} p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3 min-h-0`}>
-        {messages.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-white/60 text-sm">
-              <p>No messages yet</p>
-              <p className="text-xs">Start the conversation!</p>
-            </div>
-          </div>
-        ) : (
-          messages.map((message) => {
-            const isOwnMessage = message.senderId === user?.id;
-            return (
-              <div
-                key={message.id}
-                className={`flex items-end gap-2 ${
-                  isOwnMessage ? "justify-end" : "justify-start"
-                }`}
-              >
-                {/* Avatar only for received */}
-                {!isOwnMessage && (
-                  <Avatar className="w-6 h-6 ring-1 ring-white/10 flex-shrink-0">
-                    <AvatarImage
-                      src={message.sender?.avatar || "/placeholder.svg"}
-                    />
-                    <AvatarFallback className="bg-white/10 text-white text-xs font-medium">
-                      {message.sender?.firstName?.[0] || "U"}
-                      {message.sender?.lastName?.[0] || ""}
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-
-                {/* Message bubble */}
-                <div className="max-w-[80%] sm:max-w-[65%]">
-                  <div
-                    className={`px-3 py-2 rounded-2xl text-sm leading-snug whitespace-pre-wrap break-words border transition-all duration-200 ${
-                      isOwnMessage
-                        ? "bg-[#2a2a2a]/90 text-white border-white/20 rounded-br-sm ml-auto hover:bg-[#333333]"
-                        : "bg-[#1b1b1b]/90 text-white border-white/10 rounded-bl-sm hover:bg-[#242424]"
-                    }`}
-                  >
-                    {message.image && (
-                      <img
-                        src={message.image || "/placeholder.svg"}
-                        className="w-full object-cover rounded-lg mb-2 max-h-[160px] sm:max-h-[220px]"
-                        alt="attachment"
-                      />
-                    )}
-                    <p>{message.content || message.text}</p>
-                  </div>
-
-                  {/* Timestamp */}
-                  <span
-                    className={`text-[10px] text-white/40 mt-1 block ${
-                      isOwnMessage ? "text-right pr-1" : "text-left pl-1"
-                    }`}
-                  >
-                    {new Date(
-                      message.createdAt || Date.now()
-                    ).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
+      <motion.section 
+        className={`${isMobile && "pt-16"} p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3 min-h-0`}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <AnimatePresence mode="popLayout">
+          {messages.length === 0 ? (
+            <motion.div 
+              className="flex-1 flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <div className="text-center text-white/60 text-sm">
+                <p>No messages yet</p>
+                <p className="text-xs">Start the conversation!</p>
               </div>
-            );
-          })
-        )}
+            </motion.div>
+          ) : (
+            messages.map((message) => {
+              const isOwnMessage = message.senderId === user?.id;
+              return (
+                <motion.div
+                  key={message.id}
+                  variants={messageVariants}
+                  layout
+                  className={`flex items-end gap-2 ${
+                    isOwnMessage ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  {/* Avatar only for received */}
+                  {!isOwnMessage && (
+                    <Avatar className="w-6 h-6 ring-1 ring-white/10 flex-shrink-0">
+                      <AvatarImage
+                        src={message.sender?.avatar || "/placeholder.svg"}
+                      />
+                      <AvatarFallback className="bg-white/10 text-white text-xs font-medium">
+                        {message.sender?.firstName?.[0] || "U"}
+                        {message.sender?.lastName?.[0] || ""}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+
+                  {/* Message bubble */}
+                  <motion.div 
+                    className="max-w-[80%] sm:max-w-[65%]"
+                    whileHover={{ scale: 1.02 }}
+                  >
+                    <div
+                      className={`px-3 py-2 rounded-2xl text-sm leading-snug whitespace-pre-wrap break-words border transition-all duration-200 ${
+                        isOwnMessage
+                          ? "bg-[#2a2a2a]/90 text-white border-white/20 rounded-br-sm ml-auto hover:bg-[#333333] hover:border-white/30"
+                          : "bg-[#1b1b1b]/90 text-white border-white/10 rounded-bl-sm hover:bg-[#242424] hover:border-white/20"
+                      }`}
+                    >
+                      {message.image && (
+                        <img
+                          src={message.image || "/placeholder.svg"}
+                          className="w-full object-cover rounded-lg mb-2 max-h-[160px] sm:max-h-[220px]"
+                          alt="attachment"
+                        />
+                      )}
+                      <p>{message.content || message.text}</p>
+                    </div>
+
+                    {/* Timestamp */}
+                    <span
+                      className={`text-[10px] text-white/40 mt-1 block ${
+                        isOwnMessage ? "text-right pr-1" : "text-left pl-1"
+                      }`}
+                    >
+                      {new Date(
+                        message.createdAt || Date.now()
+                      ).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </motion.div>
+                </motion.div>
+              );
+            })
+          )}
+        </AnimatePresence>
         <div ref={endRef}></div>
-      </section>
+      </motion.section>
 
       {/* Message Input - FIXED HEIGHT */}
       <div className="flex-shrink-0 flex border-t border-white/10 items-center gap-2 sm:gap-3 p-2 sm:p-3 backdrop-blur-sm bg-white/5">
         {/* Hidden on mobile, shown on larger screens */}
         <div className="hidden lg:flex gap-2 sm:gap-3">
-          <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
-          <Camera className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
-          <Mic className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+          {[ImageIcon, Camera, Mic].map((Icon, idx) => (
+            <motion.button 
+              key={idx} 
+              whileHover={{ scale: 1.1 }} 
+              whileTap={{ scale: 0.95 }}
+            >
+              <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+            </motion.button>
+          ))}
         </div>
 
         {/* Dropdown for mobile */}
         <DropdownMenu>
           <DropdownMenuTrigger>
-            <PlusCircle className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors lg:hidden inline" />
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <PlusCircle className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors lg:hidden inline" />
+            </motion.div>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="bg-black/95 border border-white/20 rounded-lg shadow-lg backdrop-blur-sm">
             <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
@@ -357,27 +421,40 @@ const Chat = ({
         />
 
         <div className="relative">
-          <Smile
-            className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors"
+          <motion.button 
+            whileHover={{ scale: 1.1 }} 
+            whileTap={{ scale: 0.95 }} 
             onClick={() => setOpen(!open)}
-          />
-          {open && (
-            <div className="absolute bottom-12 -right-14 sm:right-0 z-50 max-w-[90vw] sm:max-w-xs">
-              <EmojiPicker onEmojiClick={handleEmoji} />
-            </div>
-          )}
+          >
+            <Smile className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+          </motion.button>
+          <AnimatePresence>
+            {open && (
+              <motion.div
+                className="absolute bottom-12 -right-14 sm:right-0 z-50 max-w-[90vw] sm:max-w-xs"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                <EmojiPicker onEmojiClick={handleEmoji} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        <button
+        <motion.button
           onClick={sendMessage}
           disabled={!text.trim()}
           className="bg-white hover:bg-black hover:text-white ease-in text-black py-2 px-3 sm:px-4 rounded-xl cursor-pointer transition-colors flex items-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
           <Send className="w-4 h-4" />
           <span className="hidden sm:inline">Send</span>
-        </button>
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
