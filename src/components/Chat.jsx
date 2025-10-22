@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useContext } from "react";
 import axios from "axios";
 import EmojiPicker from "emoji-picker-react";
+import { Spinner } from "./ui/spinner";
 import {
   Phone,
   ArrowLeft,
@@ -17,6 +18,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
 import { SocketContext } from "../context/SocketContext";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 
 const Chat = ({
@@ -179,11 +181,12 @@ const Chat = ({
   if (loading) {
     return (
       <motion.div 
-        className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
+        className="flex-1 h-full flex items-center justify-center gap-2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
+        <Spinner className="w-5 h-5 text-white/60" />
         <div className="text-white/60">Loading chat...</div>
       </motion.div>
     );
@@ -210,7 +213,7 @@ const Chat = ({
     <motion.div
       className={`${
         isMobile ? "bg-black h-screen" : "bg-black/20 backdrop-blur-md h-full"
-      } flex flex-col border-l border-r border-white/10 overflow-hidden`}
+      } flex flex-col border-l border-r w-full border-white/10 overflow-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
