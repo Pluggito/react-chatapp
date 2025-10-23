@@ -214,7 +214,7 @@ const Chat = ({
   return (
     <motion.div
       className={`${
-        isMobile ? "bg-black h-[100dvh]" : "bg-black/20 backdrop-blur-md h-full"
+        isMobile ? "bg-black h-[100dvh] pt-2" : "bg-black/20 backdrop-blur-md h-full"
       } flex flex-col border-l border-r w-full border-white/10 overflow-y-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
