@@ -214,7 +214,7 @@ const Chat = ({
   return (
     <motion.div
       className={`${
-        isMobile ? "bg-black h-[100dvh] mt-3" : "bg-black/20 backdrop-blur-md h-full"
+        isMobile ? "bg-black h-[100dvh] " : "bg-black/20 backdrop-blur-md h-full"
       } flex flex-col border-l border-r w-full border-white/10 overflow-y-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -222,7 +222,7 @@ const Chat = ({
       transition={{ duration: 0.3 }}
     >
       {/* Chat Header - FIXED HEIGHT */}
-      <div className={`${isMobile && "fixed w-full z-10"} flex-shrink-0 flex p-2 sm:p-3 justify-between items-center border-b border-white/10 backdrop-blur-sm`}>
+      <div className={`${isMobile && "fixed w-full z-10"} flex-shrink-0 flex p-3  justify-between items-center border-b border-white/10 backdrop-blur-sm`}>
         <div className="flex items-center gap-2">
           {/* Back button (mobile only) */}
           {isMobile && onBackToList && (
