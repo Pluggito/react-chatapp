@@ -21,7 +21,7 @@ const Home = ({
     <>
       {syncUser && isLoggedIn ? (
         <main
-          className="w-full h-full relative rounded-2xl backdrop-blur-xl bg-gradient-to-br from-white/10 via-write/5 to-write/10 lg:border lg:border-white/20
+          className="w-full h-[100dvh] relative rounded-2xl backdrop-blur-xl bg-gradient-to-br from-white/10 via-write/5 to-write/10 lg:border lg:border-white/20
                     shadow-[0_0_30px_rgba(255,255,255,0.1)] flex md:flex-row overflow-hidden
                     md:w-[90vw] md:h-[90vh] max-w-full"
         >

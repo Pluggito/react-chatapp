@@ -101,27 +101,31 @@ const Chat = ({
 
   // Socket listeners
   useEffect(() => {
-    if (!socket || !chatId) return;
+  if (!socket || !chatId) return;
 
-    joinRoom(chatId);
+  const handleConnect = () => {
+    joinRoom(chatId); // rejoin when socket reconnects
+  };
 
-    const handleNewMessage = (msg) => {
-      setMessages((prev) => {
-        // Prevent duplicate messages
-        if (prev.some(m => m.id === msg.id)) {
-          return prev;
-        }
-        return [...prev, msg];
-      });
-    };
+  const handleNewMessage = (msg) => {
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === msg.id)) return prev;
+      return [...prev, msg];
+    });
+  };
 
-    socket.on("newMessage", handleNewMessage);
+  // 👇 Join immediately and rejoin on reconnect
+  joinRoom(chatId);
+  socket.on("connect", handleConnect);
+  socket.on("newMessage", handleNewMessage);
 
-    return () => {
-      leaveRoom(chatId);
-      socket.off("newMessage", handleNewMessage);
-    };
-  }, [socket, chatId, joinRoom, leaveRoom]);
+  return () => {
+    leaveRoom(chatId);
+    socket.off("connect", handleConnect);
+    socket.off("newMessage", handleNewMessage);
+  };
+}, [socket, chatId, joinRoom, leaveRoom]);
+
 
   const sendMessage = async () => {
     if (!text.trim() || !chatId || !user?.id) return;
