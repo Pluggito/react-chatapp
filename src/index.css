@@ -151,5 +151,6 @@
   body {
     background-color: #000;
     color-scheme: dark;
+    overflow: hidden;
   }
 }
