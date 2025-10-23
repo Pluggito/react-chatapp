@@ -37,6 +37,7 @@ const Chat = ({
   const { socket, joinRoom, leaveRoom, sendMessage: socketSendMessage } = useContext(SocketContext);
   const endRef = useRef(null);
 
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -96,6 +97,7 @@ const Chat = ({
 
     fetchChatData();
   }, [chatId, user?.id, authToken]);
+
 
   // Socket listeners
   useEffect(() => {
