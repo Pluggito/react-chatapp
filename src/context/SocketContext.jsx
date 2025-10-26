@@ -1,11 +1,16 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { io } from "socket.io-client";
 import { AuthContext } from "./AuthContext";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:3050";
+  import.meta.env.VITE_API_BASE_URL;
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SocketContext = createContext(null);
@@ -84,7 +89,9 @@ export const SocketProvider = ({ children }) => {
         console.log("📥 Joining room:", chatRoomId);
         socket.emit("joinRoom", { chatRoomId }); // ✅ Send as object
       } else {
-        console.warn("⚠️ Cannot join room - socket not connected or no chatRoomId");
+        console.warn(
+          "⚠️ Cannot join room - socket not connected or no chatRoomId"
+        );
       }
     },
     [socket]
