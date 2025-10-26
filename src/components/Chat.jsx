@@ -17,12 +17,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
 import { SocketContext } from "../context/SocketContext";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -39,8 +34,9 @@ const Chat = ({
   const [loading, setLoading] = useState(false);
   const [chatRoom, setChatRoom] = useState(null);
   const { user, authToken } = useContext(AuthContext);
-  const { socket, joinRoom, leaveRoom } = useContext(SocketContext); // ✅ Removed sendMessage
+  const { socket, joinRoom, leaveRoom, sendMessage: socketSendMessage } = useContext(SocketContext);
   const endRef = useRef(null);
+
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -59,10 +55,9 @@ const Chat = ({
       try {
         setLoading(true);
 
+        // 1️⃣ Get chatroom details
         const { data: chatRoomData } = await axios.get(
-          `${
-            import.meta.env.VITE_API_BASE_URL
-          }/chatserver/chat/chatrooms/${chatId}`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`
         );
         setChatRoom(chatRoomData);
 
@@ -71,25 +66,25 @@ const Chat = ({
           return;
         }
 
+        // 2️⃣ Get active members (users in this chatroom)
         const { data: members } = await axios.get(
-          `${
-            import.meta.env.VITE_API_BASE_URL
-          }/chatserver/chat/chatrooms/${chatId}/members`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`
         );
 
+        // Filter out current user from active members for display
         const otherMembers = members.filter(
           (member) => member.userId !== user.id
         );
         setActiveMembers(otherMembers);
 
+        // 3️⃣ Get messages
         const { data: msgs } = await axios.get(
-          `${
-            import.meta.env.VITE_API_BASE_URL
-          }/chatserver/chat/chatrooms/${chatId}/messages`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`
         );
         setMessages(msgs);
       } catch (err) {
         console.error("Error loading chat data:", err);
+        // If chatroom doesn't exist or user doesn't have access
         if (err.response?.status === 404 || err.response?.status === 403) {
           setMessages([]);
           setActiveMembers([]);
@@ -101,7 +96,8 @@ const Chat = ({
     };
 
     fetchChatData();
-  }, [chatId, user?.id, authToken, setActiveMembers]);
+  }, [chatId, user?.id, authToken]);
+
 
   // Socket listeners
   useEffect(() => {
@@ -110,12 +106,9 @@ const Chat = ({
     joinRoom(chatId);
 
     const handleNewMessage = (msg) => {
-      console.log("📨 New message received via socket:", msg);
-
       setMessages((prev) => {
         // Prevent duplicate messages
-        if (prev.some((m) => m.id === msg.id)) {
-          console.log("⚠️ Duplicate message detected, skipping");
+        if (prev.some(m => m.id === msg.id)) {
           return prev;
         }
         return [...prev, msg];
@@ -133,27 +126,33 @@ const Chat = ({
   const sendMessage = async () => {
     if (!text.trim() || !chatId || !user?.id) return;
 
-    const messageContent = text.trim();
-    setText(""); // Clear immediately for better UX
-
     try {
-      // Just send to backend - it will broadcast via socket
-      await axios.post(
-        `${
-          import.meta.env.VITE_API_BASE_URL
-        }/chatserver/chat/chatrooms/${chatId}/messages`,
-        { senderId: user.id, content: messageContent },
+      // Send message to backend (persist)
+      const { data: newMsg } = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+        { senderId: user.id, content: text.trim() },
         {
           headers: { Authorization: `Bearer ${authToken}` },
           withCredentials: true,
         }
       );
 
-      // Message will arrive via socket listener automatically
-      console.log("✅ Message sent, waiting for socket broadcast");
+      // Emit message via socket for real-time update
+      if (socket) {
+        socketSendMessage(chatId, newMsg);
+      }
+
+      // Add to local state (optimistic update)
+      setMessages((prev) => {
+        if (prev.some(m => m.id === newMsg.id)) {
+          return prev;
+        }
+        return [...prev, newMsg];
+      });
+      
+      setText("");
     } catch (err) {
-      console.error("❌ Error sending message:", err);
-      setText(messageContent); // Restore text on error
+      console.error("Error sending message:", err);
     }
   };
 
@@ -183,7 +182,7 @@ const Chat = ({
   // Show loading state with animation
   if (loading) {
     return (
-      <motion.div
+      <motion.div 
         className="flex-1 h-full flex items-center justify-center gap-2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -198,7 +197,7 @@ const Chat = ({
   // Show empty state when no chat is selected
   if (!chatId) {
     return (
-      <motion.div
+      <motion.div 
         className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -215,9 +214,7 @@ const Chat = ({
   return (
     <motion.div
       className={`${
-        isMobile
-          ? "bg-black h-[100dvh] "
-          : "bg-black/20 backdrop-blur-md h-full"
+        isMobile ? "bg-black h-[100dvh] " : "bg-black/20 backdrop-blur-md h-full"
       } flex flex-col border-l border-r w-full border-white/10 overflow-y-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -225,11 +222,7 @@ const Chat = ({
       transition={{ duration: 0.3 }}
     >
       {/* Chat Header - FIXED HEIGHT */}
-      <div
-        className={`${
-          isMobile && "fixed w-full z-10"
-        } flex-shrink-0 flex p-3  justify-between items-center border-b border-white/10 backdrop-blur-sm`}
-      >
+      <div className={`${isMobile && "fixed w-full z-10"} flex-shrink-0 flex p-3  justify-between items-center border-b border-white/10 backdrop-blur-sm`}>
         <div className="flex items-center gap-2">
           {/* Back button (mobile only) */}
           {isMobile && onBackToList && (
@@ -394,9 +387,9 @@ const Chat = ({
         {/* Hidden on mobile, shown on larger screens */}
         <div className="hidden lg:flex gap-2 sm:gap-3">
           {[ImageIcon, Camera, Mic].map((Icon, idx) => (
-            <motion.button
-              key={idx}
-              whileHover={{ scale: 1.1 }}
+            <motion.button 
+              key={idx} 
+              whileHover={{ scale: 1.1 }} 
               whileTap={{ scale: 0.95 }}
             >
               <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
@@ -443,9 +436,9 @@ const Chat = ({
         />
 
         <div className="relative">
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
+          <motion.button 
+            whileHover={{ scale: 1.1 }} 
+            whileTap={{ scale: 0.95 }} 
             onClick={() => setOpen(!open)}
           >
             <Smile className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />

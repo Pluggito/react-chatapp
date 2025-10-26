@@ -1,59 +1,40 @@
-"use client";
+"use client"
 
-import { useContext, useState, useEffect } from "react";
-import { Plus, Minus, SearchIcon } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "../ui/dialog";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import axios from "axios";
-import { AuthContext } from "../../context/AuthContext";
-import { SocketContext } from "../../context/SocketContext";
-import { motion, AnimatePresence } from "framer-motion";
+import { useContext, useState, useEffect } from "react"
+import { Plus, Minus, SearchIcon } from "lucide-react"
+import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog"
+import { Button } from "../ui/button"
+import { Input } from "../ui/input"
+import axios from "axios"
+import { AuthContext } from "../../context/AuthContext"
+import { SocketContext } from "../../context/SocketContext"
+// eslint-disable-next-line no-unused-vars
+import { motion, AnimatePresence } from "framer-motion"
 
-const ChatList = ({
-  onChatSelect,
-  setActiveChatRoomId,
-  activeChatRoomId,
-  isMobile,
-}) => {
-  const [addMode, setAddMode] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [alreadyAddedIds, setAlreadyAddedIds] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const { user, authToken } = useContext(AuthContext);
-  const { socket, chatListUpdate } = useContext(SocketContext);
+const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobile }) => {
+  const [addMode, setAddMode] = useState(false)
+  const [searchInput, setSearchInput] = useState("")
+  const [searchResults, setSearchResults] = useState([])
+  const [alreadyAddedIds, setAlreadyAddedIds] = useState([])
+  const [loading, setLoading] = useState(false)
+  const { user, authToken } = useContext(AuthContext)
+  const { socket, chatListUpdate } = useContext(SocketContext)
 
-  const [contacts, setContacts] = useState([]);
+  const [contacts, setContacts] = useState([])
 
   const loadUserChatrooms = async () => {
     try {
-      setLoading(true);
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${
-          user.id
-        }`
-      );
+      setLoading(true)
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`)
 
       const formattedContacts = res.data.map((chatroom) => {
-        const otherMember = chatroom.members?.find(
-          (member) => member.userId !== user.id
-        );
-        const otherUser = otherMember?.user;
+        const otherMember = chatroom.members?.find((member) => member.userId !== user.id)
+        const otherUser = otherMember?.user
 
         return {
           id: chatroom.id,
-          name: otherUser
-            ? `${otherUser.firstName} ${otherUser.lastName}`
-            : "Unknown User",
+          name: otherUser ? `${otherUser.firstName} ${otherUser.lastName}` : "Unknown User",
           message: chatroom.lastMessage?.content || "No messages yet",
           avatar: otherUser?.avatar || null,
           time: chatroom.lastMessage?.createdAt
@@ -64,66 +45,55 @@ const ChatList = ({
             : "New chat",
           unread: chatroom.unreadCount || 0,
           otherUserId: otherUser?.id,
-        };
-      });
+        }
+      })
 
-      setContacts(formattedContacts);
-      console.log("✅ Loaded chatrooms:", formattedContacts.length);
+      setContacts(formattedContacts)
     } catch (err) {
-      console.error("❌ Error loading chatrooms:", err);
+      console.error("Error loading chatrooms:", err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
     if (user?.id && authToken) {
-      loadUserChatrooms();
+      loadUserChatrooms()
     }
-  }, [user?.id, authToken]);
+  }, [user?.id, authToken])
 
   const getUserBySearch = async () => {
-    if (!searchInput.trim()) return;
+    if (!searchInput.trim()) return
 
     try {
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/users/search`,
-        {
-          params: { search: searchInput },
-        }
-      );
-      setSearchResults(res.data);
-      console.log("🔍 Search results:", res.data);
+      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/users/search`, {
+        params: { search: searchInput },
+      })
+      setSearchResults(res.data)
     } catch (err) {
-      console.error("❌ Error in searching user:", err);
-      setSearchResults([]);
+      console.error("Error in searching user", err)
+      setSearchResults([])
     }
-  };
+  }
 
   const handleAddUser = async (selectedUser) => {
     try {
-      const existingChat = contacts.find(
-        (contact) => contact.otherUserId === selectedUser.id
-      );
+      const existingChat = contacts.find((contact) => contact.otherUserId === selectedUser.id)
 
       if (existingChat) {
-        setActiveChatRoomId(existingChat.id);
-        onChatSelect?.(existingChat.id);
-        setAddMode(false);
-        console.log("✅ Existing chat selected:", existingChat.id);
-        return;
+        setActiveChatRoomId(existingChat.id)
+        onChatSelect?.(existingChat.id)
+        setAddMode(false)
+        return
       }
 
       const res = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms`,
         { currentUserId: user.id, otherUserId: selectedUser.id },
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-          withCredentials: true,
-        }
-      );
+        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true },
+      )
 
-      const chatRoom = res.data;
+      const chatRoom = res.data
 
       const newContact = {
         id: chatRoom.id,
@@ -133,43 +103,35 @@ const ChatList = ({
         time: "Just now",
         unread: 0,
         otherUserId: selectedUser.id,
-      };
+      }
 
-      setContacts((prev) => [newContact, ...prev]);
-      setActiveChatRoomId(chatRoom.id);
-      onChatSelect?.(chatRoom.id);
-      setAlreadyAddedIds((prev) => [...prev, selectedUser.id]);
-      setAddMode(false);
-      setSearchInput("");
-      setSearchResults([]);
-      console.log("✅ New chat created:", chatRoom.id);
+      setContacts((prev) => [newContact, ...prev])
+      setActiveChatRoomId(chatRoom.id)
+      onChatSelect?.(chatRoom.id)
+      setAlreadyAddedIds((prev) => [...prev, selectedUser.id])
+      setAddMode(false)
+      setSearchInput("")
+      setSearchResults([])
     } catch (err) {
-      console.error("❌ Error creating chat room:", err);
+      console.error("Error creating chat room", err)
     }
-  };
+  }
 
   const handleChatClick = (chatId) => {
-    setActiveChatRoomId(chatId);
-    onChatSelect?.(chatId);
-    console.log("💬 Chat selected:", chatId);
-  };
+    setActiveChatRoomId(chatId)
+    onChatSelect?.(chatId)
+  }
 
-  // ✅ Listen for new chatrooms created by others
   useEffect(() => {
-    if (!socket || !user?.id) return;
+    if (!socket || !user?.id) return
 
     const handleNewChatRoom = (chatRoom) => {
-      console.log("🆕 New chatroom received:", chatRoom);
-      const otherMember = chatRoom.members?.find(
-        (member) => member.userId !== user.id
-      );
-      const otherUser = otherMember?.user;
+      const otherMember = chatRoom.members?.find((member) => member.userId !== user.id)
+      const otherUser = otherMember?.user
 
       const newContact = {
         id: chatRoom.id,
-        name: otherUser
-          ? `${otherUser.firstName} ${otherUser.lastName}`
-          : "Unknown User",
+        name: otherUser ? `${otherUser.firstName} ${otherUser.lastName}` : "Unknown User",
         message: chatRoom.lastMessage?.content || "No messages yet",
         avatar: otherUser?.avatar || null,
         time: chatRoom.lastMessage?.createdAt
@@ -180,37 +142,24 @@ const ChatList = ({
           : "New chat",
         unread: chatRoom.unreadCount || 0,
         otherUserId: otherUser?.id,
-      };
-
-      setContacts((prev) =>
-        prev.some((c) => c.id === newContact.id) ? prev : [newContact, ...prev]
-      );
-    };
-
-    socket.on("newChatRoom", handleNewChatRoom);
-
-    return () => {
-      socket.off("newChatRoom", handleNewChatRoom);
-    };
-  }, [socket, user?.id]);
-
-  // ✅ Listen for chat list updates (new messages)
-  useEffect(() => {
-    if (!chatListUpdate) return;
-
-    console.log("📬 Chat list update received:", chatListUpdate);
-    const { chatRoomId, message } = chatListUpdate;
-
-    setContacts((prev) => {
-      // Find if this chatroom already exists
-      const existingIndex = prev.findIndex((c) => c.id === chatRoomId);
-
-      if (existingIndex === -1) {
-        // If chatroom doesn't exist, you might need to fetch it
-        console.warn("⚠️ Received update for unknown chatroom:", chatRoomId);
-        return prev;
       }
 
+      setContacts((prev) => (prev.some((c) => c.id === newContact.id) ? prev : [newContact, ...prev]))
+    }
+
+    socket.on("newChatRoom", handleNewChatRoom)
+
+    return () => {
+      socket.off("newChatRoom", handleNewChatRoom)
+    }
+  }, [socket, user?.id])
+
+  useEffect(() => {
+    if (!chatListUpdate) return
+
+    const { chatRoomId, message } = chatListUpdate
+
+    setContacts((prev) => {
       const updated = prev.map((contact) => {
         if (contact.id === chatRoomId) {
           return {
@@ -222,32 +171,27 @@ const ChatList = ({
                   minute: "2-digit",
                 })
               : contact.time,
-            // Only increment unread if this chat is NOT currently active
-            unread:
-              activeChatRoomId === chatRoomId
-                ? contact.unread
-                : (contact.unread || 0) + 1,
-          };
+            unread: activeChatRoomId === chatRoomId ? contact.unread : (contact.unread || 0) + 1,
+          }
         }
-        return contact;
-      });
+        return contact
+      })
 
-      // Move updated chat to top
-      const updatedIndex = updated.findIndex((c) => c.id === chatRoomId);
+      const updatedIndex = updated.findIndex((c) => c.id === chatRoomId)
       if (updatedIndex > 0) {
-        const [movedChat] = updated.splice(updatedIndex, 1);
-        updated.unshift(movedChat);
+        const [movedChat] = updated.splice(updatedIndex, 1)
+        updated.unshift(movedChat)
       }
 
-      return updated;
-    });
-  }, [chatListUpdate, activeChatRoomId]);
+      return updated
+    })
+  }, [chatListUpdate])
 
   const chatItemVariants = {
     hidden: { opacity: 0, x: -20 },
     visible: { opacity: 1, x: 0 },
     exit: { opacity: 0, x: -20 },
-  };
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -257,7 +201,7 @@ const ChatList = ({
         staggerChildren: 0.05,
       },
     },
-  };
+  }
 
   return (
     <div className="flex flex-col h-[81dvh] md:h-[78dvh]">
@@ -306,11 +250,7 @@ const ChatList = ({
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && getUserBySearch()}
                 />
-                <Button
-                  variant={"ghost"}
-                  onClick={getUserBySearch}
-                  className="text-white"
-                >
+                <Button variant={"ghost"} onClick={getUserBySearch} className="text-white">
                   Search
                 </Button>
               </div>
@@ -321,9 +261,7 @@ const ChatList = ({
                   .filter((u) => u.id !== user.id)
                   .map((u) => {
                     const isAlreadyAdded =
-                      contacts.some(
-                        (contact) => contact.otherUserId === u.id
-                      ) || alreadyAddedIds.includes(u.id);
+                      contacts.some((contact) => contact.otherUserId === u.id) || alreadyAddedIds.includes(u.id)
 
                     return (
                       <motion.div
@@ -335,10 +273,7 @@ const ChatList = ({
                       >
                         <div className="flex items-center gap-3">
                           <Avatar className="w-9 h-9 md:w-11 md:h-11 flex-shrink-0">
-                            <AvatarImage
-                              src={u.avatar || "/placeholder.svg"}
-                              alt={`${u.firstName} ${u.lastName}`}
-                            />
+                            <AvatarImage src={u.avatar || "/placeholder.svg"} alt={`${u.firstName} ${u.lastName}`} />
                             <AvatarFallback className="bg-white/10 text-white font-medium text-sm md:text-base">
                               {u.firstName?.[0]}
                               {u.lastName?.[0]}
@@ -348,34 +283,25 @@ const ChatList = ({
                             <h2 className="font-medium text-white text-sm md:text-lg truncate">
                               {u.firstName} {u.lastName}
                             </h2>
-                            <span className="text-xs text-gray-400">
-                              @{u.username}
-                            </span>
+                            <span className="text-xs text-gray-400">@{u.username}</span>
                           </div>
                         </div>
                         {isAlreadyAdded ? (
-                          <span className="text-green-500 text-sm font-medium">
-                            Added
-                          </span>
+                          <span className="text-green-500 text-sm font-medium">Added</span>
                         ) : (
-                          <motion.div
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                          >
+                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                             <Button onClick={() => handleAddUser(u)} size="sm">
                               Add User
                             </Button>
                           </motion.div>
                         )}
                       </motion.div>
-                    );
+                    )
                   })
               ) : searchInput && searchResults.length === 0 ? (
                 <p className="text-white text-sm">No users found</p>
               ) : (
-                <p className="text-white/60 text-sm">
-                  Enter a name to search for users
-                </p>
+                <p className="text-white/60 text-sm">Enter a name to search for users</p>
               )}
             </div>
           </DialogContent>
@@ -387,33 +313,23 @@ const ChatList = ({
         {loading ? (
           <div className="p-4 text-center text-white/60">Loading chats...</div>
         ) : (
-          <motion.div
-            className="p-4 space-y-2"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
+          <motion.div className="p-4 space-y-2" variants={containerVariants} initial="hidden" animate="visible">
             <AnimatePresence mode="popLayout">
               {contacts.length > 0 ? (
                 contacts.map((chat) => (
                   <motion.div
-                    key={`chat-${chat.id}-${chat.otherUserId}`}
+                    key={chat.id}
                     variants={chatItemVariants}
                     layout
                     className={`flex justify-between items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 group ${
-                      activeChatRoomId === chat.id
-                        ? "bg-white/10 border-l-4 border-blue-500"
-                        : "hover:bg-white/5"
+                      activeChatRoomId === chat.id ? "bg-white/10 border-l-4 border-blue-500" : "hover:bg-white/5"
                     }`}
                     onClick={() => handleChatClick(chat.id)}
                     whileHover={{ x: 4 }}
                   >
                     <div>
                       <Avatar className="h-12 w-12 flex-shrink-0">
-                        <AvatarImage
-                          src={chat.avatar || "/placeholder.svg"}
-                          alt={chat.name}
-                        />
+                        <AvatarImage src={chat.avatar || "/placeholder.svg"} alt={chat.name} />
                         <AvatarFallback className="bg-gray-700 text-white font-medium">
                           {chat.name
                             .split(" ")
@@ -424,17 +340,11 @@ const ChatList = ({
                     </div>
                     <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-medium text-white truncate text-sm">
-                          {chat.name}
-                        </h3>
-                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                          {chat.time}
-                        </span>
+                        <h3 className="font-medium text-white truncate text-sm">{chat.name}</h3>
+                        <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{chat.time}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <p className="text-sm text-gray-300 truncate pr-2">
-                          {chat.message}
-                        </p>
+                        <p className="text-sm text-gray-300 truncate pr-2">{chat.message}</p>
                         {chat.unread > 0 && (
                           <motion.span
                             className="bg-white text-black text-xs rounded-full px-2 py-0.5 min-w-[18px] h-[18px] flex items-center justify-center flex-shrink-0 font-medium"
@@ -452,9 +362,7 @@ const ChatList = ({
               ) : (
                 <div className="text-center text-white/60 py-8">
                   <p>No chats yet</p>
-                  <p className="text-sm">
-                    Click the + button to start a conversation
-                  </p>
+                  <p className="text-sm">Click the + button to start a conversation</p>
                 </div>
               )}
             </AnimatePresence>
@@ -462,7 +370,7 @@ const ChatList = ({
         )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default ChatList;
+export default ChatList
