@@ -100,28 +100,29 @@ const Chat = ({
 
 
   // Socket listeners
-  useEffect(() => {
-    if (!socket || !chatId) return;
+useEffect(() => {
+  if (!socket || !chatId) return;
 
-    joinRoom(chatId);
+  joinRoom(chatId);
 
-    const handleNewMessage = (msg) => {
-      setMessages((prev) => {
-        // Prevent duplicate messages
-        if (prev.some(m => m.id === msg.id)) {
-          return prev;
-        }
-        return [...prev, msg];
-      });
-    };
+  const handleNewMessage = (msg) => {
+    console.log("📩 Incoming Socket Message:", msg);
 
-    socket.on("newMessage", handleNewMessage);
+    setMessages(prev => {
+      const exists = prev.some(m => m.id === msg.id);
+      return exists ? prev : [...prev, msg];
+    });
+  };
 
-    return () => {
-      leaveRoom(chatId);
-      socket.off("newMessage", handleNewMessage);
-    };
-  }, [socket, chatId, joinRoom, leaveRoom]);
+  socket.on("newMessage", handleNewMessage);
+  socket.on("message", handleNewMessage); // ✅ fallback support
+
+  return () => {
+    leaveRoom(chatId);
+    socket.off("newMessage", handleNewMessage);
+    socket.off("message", handleNewMessage);
+  };
+}, [socket, chatId, joinRoom, leaveRoom]);
 
   const sendMessage = async () => {
     if (!text.trim() || !chatId || !user?.id) return;

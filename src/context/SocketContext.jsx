@@ -4,14 +4,15 @@ import { AuthContext } from "./AuthContext";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL 
-
-// eslint-disable-next-line react-refresh/only-export-components
+  import.meta.env.VITE_API_BASE_URL;
+  
+// eslint-disable-next-line react-refresh/only-export-components  
 export const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
   const { user, authToken } = useContext(AuthContext);
   const [socket, setSocket] = useState(null);
+  const [newMessage, setNewMessage] = useState(null);
   const [chatListUpdate, setChatListUpdate] = useState(null);
 
   useEffect(() => {
@@ -22,21 +23,25 @@ export const SocketProvider = ({ children }) => {
       transports: ["websocket", "polling"],
       withCredentials: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      timeout: 10000,
+      timeout: 20000,
     });
 
     setSocket(s);
-    // console.log("✅ Socket connected for:", user.email);
 
-    s.on("chatListUpdate", (data) => {
-      // console.log("🔔 Chat List Update received:", data);
-      setChatListUpdate(data);
+    // ✅ Receive new messages in chat room
+    s.on("newMessage", (message) => {
+      setNewMessage(message);
+    });
+
+    // ✅ Receive sidebar updates when any message is sent
+    s.on("lastMessageUpdate", (message) => {
+      setChatListUpdate(message);
     });
 
     s.on("disconnect", () => {
-      // console.log("❌ Socket disconnected");
+      console.warn("❌ Socket disconnected - reconnecting...");
     });
 
     return () => {
@@ -45,26 +50,16 @@ export const SocketProvider = ({ children }) => {
     };
   }, [user, authToken]);
 
-  // ----------------------
-  // Socket Helper Functions
-  // ----------------------
-
   const joinRoom = useCallback(
     (chatRoomId) => {
-      if (socket && chatRoomId) {
-        // console.log("📥 Joining room:", chatRoomId);
-        socket.emit("joinRoom", { chatRoomId });
-      }
+      socket?.emit("joinRoom", { chatRoomId });
     },
     [socket]
   );
 
   const leaveRoom = useCallback(
     (chatRoomId) => {
-      if (socket && chatRoomId) {
-        // console.log("📤 Leaving room:", chatRoomId);
-        socket.emit("leaveRoom", { chatRoomId });
-      }
+      socket?.emit("leaveRoom", { chatRoomId });
     },
     [socket]
   );
@@ -82,6 +77,7 @@ export const SocketProvider = ({ children }) => {
     <SocketContext.Provider
       value={{
         socket,
+        newMessage,
         chatListUpdate,
         joinRoom,
         leaveRoom,

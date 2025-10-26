@@ -154,38 +154,41 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     }
   }, [socket, user?.id])
 
-  useEffect(() => {
-    if (!chatListUpdate) return
+ useEffect(() => {
+  if (!chatListUpdate) return;
 
-    const { chatRoomId, message } = chatListUpdate
+  const { chatRoomId, message } = chatListUpdate;
 
-    setContacts((prev) => {
-      const updated = prev.map((contact) => {
-        if (contact.id === chatRoomId) {
-          return {
-            ...contact,
-            message: message?.content || contact.message,
-            time: message?.createdAt
-              ? new Date(message.createdAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : contact.time,
-            unread: activeChatRoomId === chatRoomId ? contact.unread : (contact.unread || 0) + 1,
-          }
-        }
-        return contact
-      })
+  setContacts(prev => {
+    const chatIndex = prev.findIndex(c => c.id === chatRoomId);
+    if (chatIndex === -1) return prev;
 
-      const updatedIndex = updated.findIndex((c) => c.id === chatRoomId)
-      if (updatedIndex > 0) {
-        const [movedChat] = updated.splice(updatedIndex, 1)
-        updated.unshift(movedChat)
-      }
+    const updatedChat = {
+      ...prev[chatIndex],
+      message: message?.content || prev[chatIndex].message,
+      time: message?.createdAt
+        ? new Date(message.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : prev[chatIndex].time,
+      unread: activeChatRoomId === chatRoomId
+        ? 0 // ✅ reset when user is inside chat
+        : (prev[chatIndex].unread || 0) + 1,
+      updatedAt: message?.createdAt || new Date().toISOString() // ✅ allow sorting
+    };
 
-      return updated
-    })
-  }, [chatListUpdate])
+    const newList = [...prev];
+    newList.splice(chatIndex, 1);
+
+    // ✅ Move updated chat to top
+    newList.unshift(updatedChat);
+
+    return newList;
+  });
+}, [chatListUpdate, activeChatRoomId]);
+
+  
 
   const chatItemVariants = {
     hidden: { opacity: 0, x: -20 },
