@@ -17,7 +17,12 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 import { AuthContext } from "../context/AuthContext";
 import { SocketContext } from "../context/SocketContext";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "./ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./ui/dropdown-menu";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -34,9 +39,8 @@ const Chat = ({
   const [loading, setLoading] = useState(false);
   const [chatRoom, setChatRoom] = useState(null);
   const { user, authToken } = useContext(AuthContext);
-  const { socket, joinRoom, leaveRoom, sendMessage: socketSendMessage } = useContext(SocketContext);
+  const { socket, joinRoom, leaveRoom } = useContext(SocketContext); // ✅ Removed sendMessage
   const endRef = useRef(null);
-
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,9 +59,10 @@ const Chat = ({
       try {
         setLoading(true);
 
-        // 1️⃣ Get chatroom details
         const { data: chatRoomData } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`
+          `${
+            import.meta.env.VITE_API_BASE_URL
+          }/chatserver/chat/chatrooms/${chatId}`
         );
         setChatRoom(chatRoomData);
 
@@ -66,25 +71,25 @@ const Chat = ({
           return;
         }
 
-        // 2️⃣ Get active members (users in this chatroom)
         const { data: members } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`
+          `${
+            import.meta.env.VITE_API_BASE_URL
+          }/chatserver/chat/chatrooms/${chatId}/members`
         );
 
-        // Filter out current user from active members for display
         const otherMembers = members.filter(
           (member) => member.userId !== user.id
         );
         setActiveMembers(otherMembers);
 
-        // 3️⃣ Get messages
         const { data: msgs } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`
+          `${
+            import.meta.env.VITE_API_BASE_URL
+          }/chatserver/chat/chatrooms/${chatId}/messages`
         );
         setMessages(msgs);
       } catch (err) {
         console.error("Error loading chat data:", err);
-        // If chatroom doesn't exist or user doesn't have access
         if (err.response?.status === 404 || err.response?.status === 403) {
           setMessages([]);
           setActiveMembers([]);
@@ -96,67 +101,59 @@ const Chat = ({
     };
 
     fetchChatData();
-  }, [chatId, user?.id, authToken]);
-
+  }, [chatId, user?.id, authToken, setActiveMembers]);
 
   // Socket listeners
   useEffect(() => {
-  if (!socket || !chatId) return;
+    if (!socket || !chatId) return;
 
-  const handleConnect = () => {
-    joinRoom(chatId); // rejoin when socket reconnects
-  };
+    joinRoom(chatId);
 
-  const handleNewMessage = (msg) => {
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === msg.id)) return prev;
-      return [...prev, msg];
-    });
-  };
+    const handleNewMessage = (msg) => {
+      console.log("📨 New message received via socket:", msg);
 
-  // 👇 Join immediately and rejoin on reconnect
-  joinRoom(chatId);
-  socket.on("connect", handleConnect);
-  socket.on("newMessage", handleNewMessage);
+      setMessages((prev) => {
+        // Prevent duplicate messages
+        if (prev.some((m) => m.id === msg.id)) {
+          console.log("⚠️ Duplicate message detected, skipping");
+          return prev;
+        }
+        return [...prev, msg];
+      });
+    };
 
-  return () => {
-    leaveRoom(chatId);
-    socket.off("connect", handleConnect);
-    socket.off("newMessage", handleNewMessage);
-  };
-}, [socket, chatId, joinRoom, leaveRoom]);
+    socket.on("newMessage", handleNewMessage);
 
+    return () => {
+      leaveRoom(chatId);
+      socket.off("newMessage", handleNewMessage);
+    };
+  }, [socket, chatId, joinRoom, leaveRoom]);
 
   const sendMessage = async () => {
     if (!text.trim() || !chatId || !user?.id) return;
 
+    const messageContent = text.trim();
+    setText(""); // Clear immediately for better UX
+
     try {
-      // Send message to backend (persist)
-      const { data: newMsg } = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
-        { senderId: user.id, content: text.trim() },
+      // Just send to backend - it will broadcast via socket
+      await axios.post(
+        `${
+          import.meta.env.VITE_API_BASE_URL
+        }/chatserver/chat/chatrooms/${chatId}/messages`,
+        { senderId: user.id, content: messageContent },
         {
           headers: { Authorization: `Bearer ${authToken}` },
           withCredentials: true,
         }
       );
 
-      // Emit message via socket for real-time update
-      if (socket) {
-        socketSendMessage(chatId, newMsg);
-      }
-
-      // Add to local state (optimistic update)
-      setMessages((prev) => {
-        if (prev.some(m => m.id === newMsg.id)) {
-          return prev;
-        }
-        return [...prev, newMsg];
-      });
-      
-      setText("");
+      // Message will arrive via socket listener automatically
+      console.log("✅ Message sent, waiting for socket broadcast");
     } catch (err) {
-      console.error("Error sending message:", err);
+      console.error("❌ Error sending message:", err);
+      setText(messageContent); // Restore text on error
     }
   };
 
@@ -186,7 +183,7 @@ const Chat = ({
   // Show loading state with animation
   if (loading) {
     return (
-      <motion.div 
+      <motion.div
         className="flex-1 h-full flex items-center justify-center gap-2"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -201,7 +198,7 @@ const Chat = ({
   // Show empty state when no chat is selected
   if (!chatId) {
     return (
-      <motion.div 
+      <motion.div
         className="flex-1 h-full flex items-center justify-center border-l border-r border-white/10 backdrop-blur-md bg-black/20"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -218,7 +215,9 @@ const Chat = ({
   return (
     <motion.div
       className={`${
-        isMobile ? "bg-black h-[100dvh] " : "bg-black/20 backdrop-blur-md h-full"
+        isMobile
+          ? "bg-black h-[100dvh] "
+          : "bg-black/20 backdrop-blur-md h-full"
       } flex flex-col border-l border-r w-full border-white/10 overflow-y-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -226,7 +225,11 @@ const Chat = ({
       transition={{ duration: 0.3 }}
     >
       {/* Chat Header - FIXED HEIGHT */}
-      <div className={`${isMobile && "fixed w-full z-10"} flex-shrink-0 flex p-3  justify-between items-center border-b border-white/10 backdrop-blur-sm`}>
+      <div
+        className={`${
+          isMobile && "fixed w-full z-10"
+        } flex-shrink-0 flex p-3  justify-between items-center border-b border-white/10 backdrop-blur-sm`}
+      >
         <div className="flex items-center gap-2">
           {/* Back button (mobile only) */}
           {isMobile && onBackToList && (
@@ -289,31 +292,41 @@ const Chat = ({
       </div>
 
       {/* Messages - SCROLLABLE SECTION */}
-      <motion.section 
-        className={`${isMobile && "pt-16"} p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3 min-h-0`}
+      <motion.section
+        className={`${
+          isMobile && "pt-16"
+        } p-2 sm:p-4 flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30 flex flex-col gap-2 sm:gap-3 min-h-0`}
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
-        <AnimatePresence mode="popLayout">
-          {messages.length === 0 ? (
-            <motion.div 
-              className="flex-1 flex items-center justify-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              <div className="text-center text-white/60 text-sm">
-                <p>No messages yet</p>
-                <p className="text-xs">Start the conversation!</p>
-              </div>
-            </motion.div>
-          ) : (
-            messages.map((message) => {
+        {messages.length === 0 ? (
+          <motion.div
+            className="flex-1 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <div className="text-center text-white/60 text-sm">
+              <p>No messages yet</p>
+              <p className="text-xs">Start the conversation!</p>
+            </div>
+          </motion.div>
+        ) : (
+          <>
+            {messages.map((message, index) => {
               const isOwnMessage = message.senderId === user?.id;
+
+              // Debug log to see message structure
+              if (index === messages.length - 1) {
+                console.log("📝 Latest message structure:", message);
+              }
+
               return (
                 <motion.div
-                  key={message.id}
-                  variants={messageVariants}
+                  key={`msg-${message.id}-${message.createdAt}`} // More stable key
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
                   layout
                   className={`flex items-end gap-2 ${
                     isOwnMessage ? "justify-end" : "justify-start"
@@ -333,7 +346,7 @@ const Chat = ({
                   )}
 
                   {/* Message bubble */}
-                  <motion.div 
+                  <motion.div
                     className="max-w-[80%] sm:max-w-[65%]"
                     whileHover={{ scale: 1.02 }}
                   >
@@ -346,12 +359,12 @@ const Chat = ({
                     >
                       {message.image && (
                         <img
-                          src={message.image || "/placeholder.svg"}
+                          src={message.image}
                           className="w-full object-cover rounded-lg mb-2 max-h-[160px] sm:max-h-[220px]"
                           alt="attachment"
                         />
                       )}
-                      <p>{message.content || message.text}</p>
+                      <p>{message.content || message.text || "[No content]"}</p>
                     </div>
 
                     {/* Timestamp */}
@@ -360,19 +373,19 @@ const Chat = ({
                         isOwnMessage ? "text-right pr-1" : "text-left pl-1"
                       }`}
                     >
-                      {new Date(
-                        message.createdAt || Date.now()
-                      ).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {message.createdAt
+                        ? new Date(message.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "Just now"}
                     </span>
                   </motion.div>
                 </motion.div>
               );
-            })
-          )}
-        </AnimatePresence>
+            })}
+          </>
+        )}
         <div ref={endRef}></div>
       </motion.section>
 
@@ -381,9 +394,9 @@ const Chat = ({
         {/* Hidden on mobile, shown on larger screens */}
         <div className="hidden lg:flex gap-2 sm:gap-3">
           {[ImageIcon, Camera, Mic].map((Icon, idx) => (
-            <motion.button 
-              key={idx} 
-              whileHover={{ scale: 1.1 }} 
+            <motion.button
+              key={idx}
+              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
             >
               <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
@@ -430,9 +443,9 @@ const Chat = ({
         />
 
         <div className="relative">
-          <motion.button 
-            whileHover={{ scale: 1.1 }} 
-            whileTap={{ scale: 0.95 }} 
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setOpen(!open)}
           >
             <Smile className="w-5 h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
