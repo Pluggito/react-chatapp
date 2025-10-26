@@ -4,8 +4,7 @@ import { AuthContext } from "./AuthContext";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:3050";
+  import.meta.env.VITE_API_BASE_URL 
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const SocketContext = createContext(null);
@@ -20,8 +19,12 @@ export const SocketProvider = ({ children }) => {
 
     const s = io(SOCKET_URL, {
       query: { userId: user.id },
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
       withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 10000,
     });
 
     setSocket(s);
