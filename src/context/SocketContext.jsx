@@ -178,7 +178,7 @@ export const SocketProvider = ({ children }) => {
       messageIds
     });
 
-    console.log(`✅ Marked ${messageIds.length} messages as read in ${chatRoomId}`);
+    //console.log(`✅ Marked ${messageIds.length} messages as read in ${chatRoomId}`);
   }, [socket]);
 
   const startTyping = useCallback((chatRoomId) => {
