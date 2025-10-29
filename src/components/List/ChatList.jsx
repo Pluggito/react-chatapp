@@ -19,23 +19,36 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   const [alreadyAddedIds, setAlreadyAddedIds] = useState([])
   const [loading, setLoading] = useState(false)
   const { user, authToken } = useContext(AuthContext)
-  const { socket, chatListUpdate } = useContext(SocketContext)
+  const { chatListUpdate } = useContext(SocketContext)
 
   const [contacts, setContacts] = useState([])
 
+  // ==================== LOAD USER CHATROOMS ====================
   const loadUserChatrooms = async () => {
     try {
       setLoading(true)
-      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`)
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`
+      )
 
       const formattedContacts = res.data.map((chatroom) => {
         const otherMember = chatroom.members?.find((member) => member.userId !== user.id)
         const otherUser = otherMember?.user
 
+        // Calculate unread count from last message readers array
+        let unreadCount = 0
+        if (chatroom.lastMessage && chatroom.lastMessage.userId !== user.id) {
+          // If last message is not from me and I haven't read it
+          if (!chatroom.lastMessage.readers?.includes(user.id)) {
+            unreadCount = 1 // Simplified - in production, you'd count all unread messages
+          }
+        }
+
         return {
           id: chatroom.id,
           name: otherUser ? `${otherUser.firstName} ${otherUser.lastName}` : "Unknown User",
           message: chatroom.lastMessage?.content || "No messages yet",
+          messageType: chatroom.lastMessage?.type || "TEXT",
           avatar: otherUser?.avatar || null,
           time: chatroom.lastMessage?.createdAt
             ? new Date(chatroom.lastMessage.createdAt).toLocaleTimeString([], {
@@ -43,10 +56,16 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
                 minute: "2-digit",
               })
             : "New chat",
-          unread: chatroom.unreadCount || 0,
+          unread: unreadCount,
           otherUserId: otherUser?.id,
+          updatedAt: chatroom.updatedAt
         }
       })
+
+      // Sort by most recent
+      formattedContacts.sort((a, b) => 
+        new Date(b.updatedAt) - new Date(a.updatedAt)
+      )
 
       setContacts(formattedContacts)
     } catch (err) {
@@ -62,13 +81,15 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     }
   }, [user?.id, authToken])
 
+  // ==================== SEARCH USERS ====================
   const getUserBySearch = async () => {
     if (!searchInput.trim()) return
 
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/chatserver/users/search`, {
-        params: { search: searchInput },
-      })
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/users/search`,
+        { params: { search: searchInput } }
+      )
       setSearchResults(res.data)
     } catch (err) {
       console.error("Error in searching user", err)
@@ -76,6 +97,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     }
   }
 
+  // ==================== ADD NEW CHAT ====================
   const handleAddUser = async (selectedUser) => {
     try {
       const existingChat = contacts.find((contact) => contact.otherUserId === selectedUser.id)
@@ -90,7 +112,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
       const res = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms`,
         { currentUserId: user.id, otherUserId: selectedUser.id },
-        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true },
+        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
       )
 
       const chatRoom = res.data
@@ -99,10 +121,12 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         id: chatRoom.id,
         name: `${selectedUser.firstName} ${selectedUser.lastName}`,
         message: "New chat started...",
+        messageType: "TEXT",
         avatar: selectedUser.avatar || null,
         time: "Just now",
         unread: 0,
         otherUserId: selectedUser.id,
+        updatedAt: new Date().toISOString()
       }
 
       setContacts((prev) => [newContact, ...prev])
@@ -122,73 +146,71 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     onChatSelect?.(chatId)
   }
 
+  // ==================== HANDLE CHAT LIST UPDATES ====================
   useEffect(() => {
-    if (!socket || !user?.id) return
+    if (!chatListUpdate) return
 
-    const handleNewChatRoom = (chatRoom) => {
-      const otherMember = chatRoom.members?.find((member) => member.userId !== user.id)
-      const otherUser = otherMember?.user
+    const { chatRoomId, message } = chatListUpdate
 
-      const newContact = {
-        id: chatRoom.id,
-        name: otherUser ? `${otherUser.firstName} ${otherUser.lastName}` : "Unknown User",
-        message: chatRoom.lastMessage?.content || "No messages yet",
-        avatar: otherUser?.avatar || null,
-        time: chatRoom.lastMessage?.createdAt
-          ? new Date(chatRoom.lastMessage.createdAt).toLocaleTimeString([], {
+    setContacts((prev) => {
+      const chatIndex = prev.findIndex((c) => c.id === chatRoomId)
+      if (chatIndex === -1) return prev
+
+      const existingChat = prev[chatIndex]
+
+      // Determine preview text based on message type
+      let messagePreview = message?.content || existingChat.message
+      if (message?.type === "IMAGE") {
+        messagePreview = "📷 Image"
+      } else if (message?.type === "AUDIO") {
+        messagePreview = "🎤 Audio message"
+      }
+
+      // Calculate unread count
+      let newUnread = existingChat.unread
+      if (activeChatRoomId === chatRoomId) {
+        // User is in the chat, so mark as read
+        newUnread = 0
+      } else if (message?.senderId !== user.id) {
+        // Message from someone else and user is not in chat
+        if (!message?.readers?.includes(user.id)) {
+          newUnread = (existingChat.unread || 0) + 1
+        }
+      }
+
+      const updatedChat = {
+        ...existingChat,
+        message: messagePreview,
+        messageType: message?.type || existingChat.messageType,
+        time: message?.createdAt
+          ? new Date(message.createdAt).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })
-          : "New chat",
-        unread: chatRoom.unreadCount || 0,
-        otherUserId: otherUser?.id,
+          : existingChat.time,
+        unread: newUnread,
+        updatedAt: message?.createdAt || new Date().toISOString()
       }
 
-      setContacts((prev) => (prev.some((c) => c.id === newContact.id) ? prev : [newContact, ...prev]))
+      // Move to top
+      const newList = [...prev]
+      newList.splice(chatIndex, 1)
+      newList.unshift(updatedChat)
+
+      return newList
+    })
+  }, [chatListUpdate, activeChatRoomId, user.id])
+
+  // ==================== RESET UNREAD WHEN OPENING CHAT ====================
+  useEffect(() => {
+    if (activeChatRoomId) {
+      setContacts((prev) =>
+        prev.map((chat) =>
+          chat.id === activeChatRoomId ? { ...chat, unread: 0 } : chat
+        )
+      )
     }
-
-    socket.on("newChatRoom", handleNewChatRoom)
-
-    return () => {
-      socket.off("newChatRoom", handleNewChatRoom)
-    }
-  }, [socket, user?.id])
-
- useEffect(() => {
-  if (!chatListUpdate) return;
-
-  const { chatRoomId, message } = chatListUpdate;
-
-  setContacts(prev => {
-    const chatIndex = prev.findIndex(c => c.id === chatRoomId);
-    if (chatIndex === -1) return prev;
-
-    const updatedChat = {
-      ...prev[chatIndex],
-      message: message?.content || prev[chatIndex].message,
-      time: message?.createdAt
-        ? new Date(message.createdAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : prev[chatIndex].time,
-      unread: activeChatRoomId === chatRoomId
-        ? 0 // ✅ reset when user is inside chat
-        : (prev[chatIndex].unread || 0) + 1,
-      updatedAt: message?.createdAt || new Date().toISOString() // ✅ allow sorting
-    };
-
-    const newList = [...prev];
-    newList.splice(chatIndex, 1);
-
-    // ✅ Move updated chat to top
-    newList.unshift(updatedChat);
-
-    return newList;
-  });
-}, [chatListUpdate, activeChatRoomId]);
-
-  
+  }, [activeChatRoomId])
 
   const chatItemVariants = {
     hidden: { opacity: 0, x: -20 },
@@ -208,7 +230,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
 
   return (
     <div className="flex flex-col h-[81dvh] md:h-[78dvh]">
-      {/* Top bar (search + add button) */}
+      {/* ==================== TOP BAR ==================== */}
       <div className="flex items-center justify-between p-3 gap-2 border-b border-white/10">
         <div
           className={`flex-1 flex items-center ${
@@ -264,7 +286,8 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
                   .filter((u) => u.id !== user.id)
                   .map((u) => {
                     const isAlreadyAdded =
-                      contacts.some((contact) => contact.otherUserId === u.id) || alreadyAddedIds.includes(u.id)
+                      contacts.some((contact) => contact.otherUserId === u.id) ||
+                      alreadyAddedIds.includes(u.id)
 
                     return (
                       <motion.div
@@ -276,7 +299,10 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
                       >
                         <div className="flex items-center gap-3">
                           <Avatar className="w-9 h-9 md:w-11 md:h-11 flex-shrink-0">
-                            <AvatarImage src={u.avatar || "/placeholder.svg"} alt={`${u.firstName} ${u.lastName}`} />
+                            <AvatarImage
+                              src={u.avatar || "/placeholder.svg"}
+                              alt={`${u.firstName} ${u.lastName}`}
+                            />
                             <AvatarFallback className="bg-white/10 text-white font-medium text-sm md:text-base">
                               {u.firstName?.[0]}
                               {u.lastName?.[0]}
@@ -311,12 +337,17 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         </Dialog>
       </div>
 
-      {/* Chat list */}
+      {/* ==================== CHAT LIST ==================== */}
       <div className="flex-1 overflow-y-auto scrollbar-thin scroll-smooth scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30">
         {loading ? (
           <div className="p-4 text-center text-white/60">Loading chats...</div>
         ) : (
-          <motion.div className="p-4 space-y-2" variants={containerVariants} initial="hidden" animate="visible">
+          <motion.div
+            className="p-4 space-y-2"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             <AnimatePresence mode="popLayout">
               {contacts.length > 0 ? (
                 contacts.map((chat) => (
@@ -325,7 +356,9 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
                     variants={chatItemVariants}
                     layout
                     className={`flex justify-between items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 group ${
-                      activeChatRoomId === chat.id ? "bg-white/10 border-l-4 border-blue-500" : "hover:bg-white/5"
+                      activeChatRoomId === chat.id
+                        ? "bg-white/10 border-l-4 border-blue-500"
+                        : "hover:bg-white/5"
                     }`}
                     onClick={() => handleChatClick(chat.id)}
                     whileHover={{ x: 4 }}
