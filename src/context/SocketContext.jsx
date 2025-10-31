@@ -11,81 +11,108 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   
-  // Message and update states
   const [newMessage, setNewMessage] = useState(null);
   const [chatListUpdate, setChatListUpdate] = useState(null);
   const [messageReadUpdate, setMessageReadUpdate] = useState(null);
-  const [typingUsers, setTypingUsers] = useState({}); // { chatRoomId: Set(userIds) }
+  const [typingUsers, setTypingUsers] = useState({});
 
-  const typingTimeouts = useRef({}); // Track typing timeouts
+  const typingTimeouts = useRef({});
 
   // ==================== SOCKET CONNECTION ====================
   useEffect(() => {
     if (!user || !authToken) {
       if (socket) {
+        console.log("🔌 Disconnecting socket (no user/token)");
         socket.disconnect();
         setSocket(null);
+        setIsConnected(false);
       }
       return;
     }
 
-    console.log("🔌 Connecting to socket...");
+    console.log("🔌 Initializing socket connection...");
 
     const s = io(SOCKET_URL, {
-      query: { userId: user.id,
+      query: { 
+        userId: user.id,
         token: authToken
-       },
-       auth: {
-        token: authToken // Socket.io auth object
+      },
+      auth: {
+        token: authToken
       },  
       transports: ["websocket", "polling"],
       withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       timeout: 20000,
       path: "/socket.io/",
-      secure: true, // ✅ Force secure connection in production
+      secure: true,
       rejectUnauthorized: false
     });
 
-    // Connection handlers
+    // ==================== CONNECTION HANDLERS ====================
     s.on("connect", () => {
       console.log("✅ Socket connected:", s.id);
       setIsConnected(true);
     });
 
-    s.on("disconnect", () => {
-      console.warn("❌ Socket disconnected");
+    s.on("disconnect", (reason) => {
+      console.warn("❌ Socket disconnected:", reason);
       setIsConnected(false);
     });
 
     s.on("connect_error", (error) => {
-      console.error("❌ Socket connection error:", error);
+      console.error("❌ Socket connection error:", error.message);
       setIsConnected(false);
     });
 
-    // ==================== MESSAGE RECEIVED ====================
+    s.on("reconnect", (attemptNumber) => {
+      console.log("🔄 Socket reconnected after", attemptNumber, "attempts");
+      setIsConnected(true);
+    });
+
+    s.on("reconnect_attempt", (attemptNumber) => {
+      console.log("🔄 Reconnection attempt", attemptNumber);
+    });
+
+    s.on("reconnect_error", (error) => {
+      console.error("❌ Reconnection error:", error.message);
+    });
+
+    s.on("reconnect_failed", () => {
+      console.error("❌ Reconnection failed after all attempts");
+    });
+
+    // ==================== MESSAGE HANDLERS ====================
     s.on("message:received", (message) => {
-      console.log("📩 Message received:", message);
+      console.log("📩 [Socket Event] message:received:", {
+        id: message.id,
+        chatRoomId: message.chatRoomId,
+        senderId: message.senderId,
+        content: message.content?.substring(0, 30)
+      });
       setNewMessage(message);
     });
 
-    // ==================== CHAT LIST UPDATE ====================
     s.on("chatList:update", (update) => {
-      console.log("📋 Chat list update:", update);
+      console.log("📋 [Socket Event] chatList:update:", update.chatRoomId);
       setChatListUpdate(update);
     });
 
-    // ==================== MESSAGE READ UPDATE ====================
     s.on("message:readUpdate", (update) => {
-      console.log("✅ Message read update:", update);
+      console.log("✅ [Socket Event] message:readUpdate:", {
+        chatRoomId: update.chatRoomId,
+        messageCount: update.messageIds?.length,
+        readBy: update.readBy
+      });
       setMessageReadUpdate(update);
     });
 
-    // ==================== TYPING INDICATORS ====================
+    // ==================== TYPING HANDLERS ====================
     s.on("typing:show", ({ chatRoomId, userId }) => {
-      console.log(`⌨️ User ${userId} typing in ${chatRoomId}`);
+      console.log(`⌨️ [Socket Event] typing:show: User ${userId} in room ${chatRoomId}`);
       
       setTypingUsers((prev) => {
         const roomTypers = new Set(prev[chatRoomId] || []);
@@ -94,11 +121,12 @@ export const SocketProvider = ({ children }) => {
       });
 
       // Auto-hide after 3 seconds
-      if (typingTimeouts.current[`${chatRoomId}-${userId}`]) {
-        clearTimeout(typingTimeouts.current[`${chatRoomId}-${userId}`]);
+      const key = `${chatRoomId}-${userId}`;
+      if (typingTimeouts.current[key]) {
+        clearTimeout(typingTimeouts.current[key]);
       }
 
-      typingTimeouts.current[`${chatRoomId}-${userId}`] = setTimeout(() => {
+      typingTimeouts.current[key] = setTimeout(() => {
         setTypingUsers((prev) => {
           const roomTypers = new Set(prev[chatRoomId] || []);
           roomTypers.delete(userId);
@@ -109,16 +137,17 @@ export const SocketProvider = ({ children }) => {
           }
           return { ...prev, [chatRoomId]: roomTypers };
         });
+        delete typingTimeouts.current[key];
       }, 3000);
     });
 
     s.on("typing:hide", ({ chatRoomId, userId }) => {
-      console.log(`⌨️ User ${userId} stopped typing in ${chatRoomId}`);
+      console.log(`⌨️ [Socket Event] typing:hide: User ${userId} in room ${chatRoomId}`);
       
-      // Clear timeout if exists
-      if (typingTimeouts.current[`${chatRoomId}-${userId}`]) {
-        clearTimeout(typingTimeouts.current[`${chatRoomId}-${userId}`]);
-        delete typingTimeouts.current[`${chatRoomId}-${userId}`];
+      const key = `${chatRoomId}-${userId}`;
+      if (typingTimeouts.current[key]) {
+        clearTimeout(typingTimeouts.current[key]);
+        delete typingTimeouts.current[key];
       }
 
       setTypingUsers((prev) => {
@@ -135,14 +164,14 @@ export const SocketProvider = ({ children }) => {
 
     // Error handler
     s.on("error", (error) => {
-      console.error("Socket error:", error);
+      console.error("❌ [Socket Event] error:", error);
     });
 
     setSocket(s);
 
     // Cleanup
     return () => {
-      console.log("🔌 Disconnecting socket...");
+      console.log("🔌 Cleaning up socket connection");
       Object.values(typingTimeouts.current).forEach(clearTimeout);
       s.disconnect();
       setSocket(null);
@@ -151,21 +180,44 @@ export const SocketProvider = ({ children }) => {
   }, [user, authToken]);
 
   // ==================== HELPER FUNCTIONS ====================
-
   const joinRoom = useCallback((chatRoomId) => {
-    if (!socket || !chatRoomId) return;
+    if (!socket || !chatRoomId) {
+      console.warn("⚠️ Cannot join room: missing socket or chatRoomId");
+      return;
+    }
+
+    if (!socket.connected) {
+      console.warn("⚠️ Socket not connected, cannot join room");
+      return;
+    }
+
+    console.log(`📥 [Emit] joinRoom:`, chatRoomId);
     socket.emit("joinRoom", { chatRoomId });
-    console.log(`📥 Joined room: ${chatRoomId}`);
   }, [socket]);
 
   const leaveRoom = useCallback((chatRoomId) => {
     if (!socket || !chatRoomId) return;
+
+    console.log(`📤 [Emit] leaveRoom:`, chatRoomId);
     socket.emit("leaveRoom", { chatRoomId });
-    console.log(`📤 Left room: ${chatRoomId}`);
   }, [socket]);
 
   const sendMessage = useCallback((chatRoomId, content, type = "TEXT", mediaUrl = null, duration = null) => {
-    if (!socket || !chatRoomId) return;
+    if (!socket || !chatRoomId) {
+      console.warn("⚠️ Cannot send message: missing socket or chatRoomId");
+      return;
+    }
+
+    if (!socket.connected) {
+      console.error("❌ Socket not connected, cannot send message");
+      return;
+    }
+
+    console.log(`📨 [Emit] message:send to room ${chatRoomId}:`, {
+      content: content?.substring(0, 30),
+      type,
+      socketId: socket.id
+    });
 
     socket.emit("message:send", {
       chatRoomId,
@@ -174,28 +226,28 @@ export const SocketProvider = ({ children }) => {
       mediaUrl,
       duration
     });
-
-    console.log(`📨 Sent message to room: ${chatRoomId}`);
   }, [socket]);
 
   const markMessagesAsRead = useCallback((chatRoomId, messageIds) => {
     if (!socket || !chatRoomId || !messageIds || messageIds.length === 0) return;
 
+    console.log(`✅ [Emit] message:read in room ${chatRoomId}:`, messageIds.length, "messages");
+    
     socket.emit("message:read", {
       chatRoomId,
       messageIds
     });
-
-    //console.log(`✅ Marked ${messageIds.length} messages as read in ${chatRoomId}`);
   }, [socket]);
 
   const startTyping = useCallback((chatRoomId) => {
-    if (!socket || !chatRoomId) return;
+    if (!socket || !chatRoomId || !socket.connected) return;
+    
     socket.emit("typing:start", { chatRoomId });
   }, [socket]);
 
   const stopTyping = useCallback((chatRoomId) => {
-    if (!socket || !chatRoomId) return;
+    if (!socket || !chatRoomId || !socket.connected) return;
+    
     socket.emit("typing:stop", { chatRoomId });
   }, [socket]);
 

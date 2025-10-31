@@ -46,7 +46,8 @@ const Chat = ({
     sendMessage: socketSendMessage,
     markMessagesAsRead,
     startTyping,
-    stopTyping
+    stopTyping,
+    isConnected
   } = useContext(SocketContext);
   
   const endRef = useRef(null);
@@ -126,57 +127,75 @@ const Chat = ({
   }, [chatId, user?.id, authToken, markMessagesAsRead, setActiveMembers]);
 
   // ==================== JOIN/LEAVE ROOM ====================
-  useEffect(() => {
-    if (!socket || !chatId) return;
+ useEffect(() => {
+  if (!socket || !chatId || !isConnected) {
+    console.warn("⚠️ Cannot join room: socket not ready", { socket: !!socket, chatId, isConnected });
+    return;
+  }
 
-    joinRoom(chatId);
+  console.log("🔌 Joining room with connected socket:", chatId);
+  joinRoom(chatId);
 
-    return () => {
-      leaveRoom(chatId);
-      stopTyping(chatId);
-    };
-  }, [socket, chatId, joinRoom, leaveRoom, stopTyping]);
+  return () => {
+    console.log("🔌 Leaving room:", chatId);
+    leaveRoom(chatId);
+    stopTyping(chatId);
+  };
+}, [socket, chatId, isConnected, joinRoom, leaveRoom, stopTyping]);
 
   // ==================== HANDLE NEW MESSAGES ====================
- useEffect(() => {
-  if (!newMessage || newMessage.chatRoomId !== chatId) return;
+useEffect(() => {
+  if (!newMessage) {
+    return;
+  }
 
-  console.log("📩 New message received:", newMessage);
+  console.log("📩 New message event received:", {
+    messageId: newMessage.id,
+    chatRoomId: newMessage.chatRoomId,
+    currentChatId: chatId,
+    content: newMessage.content?.substring(0, 50)
+  });
+
+  // Only process messages for current chat
+  if (newMessage.chatRoomId !== chatId) {
+    console.log("⏭️ Message is for different chat, ignoring");
+    return;
+  }
 
   setMessages((prev) => {
+    // Check if message already exists by ID
+    const exists = prev.some(m => m.id === newMessage.id);
+    if (exists) {
+      console.log("⚠️ Message with ID already exists, skipping:", newMessage.id);
+      return prev;
+    }
+
     // Find and replace pending message
     const tempMsgIndex = prev.findIndex(
       m => m.pending && 
            m.content === newMessage.content && 
-           m.senderId === newMessage.senderId &&
-           m.chatRoomId === newMessage.chatRoomId
+           m.senderId === newMessage.senderId
     );
 
     if (tempMsgIndex !== -1) {
-      console.log("✅ Replacing temp message with real one");
+      console.log("✅ Replacing pending message with real one");
       
-      // Clear the timeout for HTTP fallback
       const tempMsg = prev[tempMsgIndex];
       if (tempMsg.timeoutId) {
         clearTimeout(tempMsg.timeoutId);
       }
 
-      // Replace temp message with real one
       const newMessages = [...prev];
       newMessages[tempMsgIndex] = { ...newMessage, pending: false };
       return newMessages;
     }
 
-    // Check if message already exists by ID
-    const exists = prev.some(m => m.id === newMessage.id);
-    if (exists) {
-      console.log("⚠️ Message already exists, skipping");
-      return prev;
-    }
+    console.log("✅ Adding new message to list");
     
     // Auto-mark as read if from another user
     if (newMessage.senderId !== user?.id) {
       setTimeout(() => {
+        console.log("📖 Auto-marking message as read:", newMessage.id);
         markMessagesAsRead(chatId, [newMessage.id]);
       }, 500);
     }
@@ -235,17 +254,26 @@ const sendMessage = async () => {
 
   // Check socket connection
   if (!socket || !socket.connected) {
-    console.error("❌ Socket not connected");
-    alert("Connection lost. Trying to reconnect...");
+    console.error("❌ Socket not connected, status:", {
+      socketExists: !!socket,
+      connected: socket?.connected,
+      isConnected
+    });
+    alert("Connection lost. Please refresh the page.");
     return;
   }
 
   const messageContent = text.trim();
   const tempId = `temp-${Date.now()}-${Math.random()}`;
   
-  console.log("🚀 Sending message:", { chatId, content: messageContent });
+  console.log("🚀 Sending message:", { 
+    chatId, 
+    content: messageContent.substring(0, 50),
+    socketId: socket.id,
+    connected: socket.connected 
+  });
   
-  // Clear input immediately for better UX
+  // Clear input immediately
   setText("");
   stopTyping(chatId);
 
@@ -270,61 +298,55 @@ const sendMessage = async () => {
 
   setMessages(prev => [...prev, optimisticMessage]);
 
-  // Send via socket
-  socketSendMessage(chatId, messageContent, "TEXT");
-
-  // Wait for the message to come back via message:received
-  const messageTimeout = setTimeout(async () => {
-    console.warn("⚠️ Socket send timeout, falling back to HTTP");
+  // Send via socket with acknowledgment
+  try {
+    console.log("📤 Emitting message:send event");
+    socketSendMessage(chatId, messageContent, "TEXT");
     
-    try {
-      const config = {
-        headers: { 
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        withCredentials: true
-      };
-
-      const { data: newMsg } = await axios.post(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
-        { 
-          senderId: user.id, 
-          content: messageContent, 
-          type: "TEXT" 
-        },
-        config
-      );
-
-      console.log("✅ HTTP fallback successful:", newMsg);
-
-      // Replace temp message with real one from HTTP
-      setMessages(prev => 
-        prev.map(m => m.id === tempId ? { ...newMsg, pending: false } : m)
-      );
-
-      // Clear the timeout
-      clearTimeout(messageTimeout);
-
-    } catch (httpErr) {
-      console.error("❌ HTTP fallback failed:", httpErr);
+    // Fallback timer
+    const messageTimeout = setTimeout(async () => {
+      console.warn("⚠️ Socket response timeout (5s), trying HTTP fallback");
       
-      // Remove failed message
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-      
-      // Show user-friendly error
-      if (httpErr.response?.status === 401) {
-        alert("Session expired. Please refresh the page and login again.");
-      } else if (httpErr.response?.status === 403) {
-        alert("You don't have permission to send messages in this chat.");
-      } else {
-        alert("Failed to send message. Please check your internet connection.");
+      try {
+        const { data: newMsg } = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+          { 
+            senderId: user.id, 
+            content: messageContent, 
+            type: "TEXT" 
+          },
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+            withCredentials: true
+          }
+        );
+
+        console.log("✅ HTTP fallback successful");
+
+        setMessages(prev => 
+          prev.map(m => m.id === tempId ? { ...newMsg, pending: false } : m)
+        );
+
+      } catch (httpErr) {
+        console.error("❌ HTTP fallback failed:", httpErr.response?.data || httpErr.message);
+        
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        
+        if (httpErr.response?.status === 401) {
+          alert("Session expired. Please refresh and login again.");
+        } else {
+          alert("Failed to send message. Please try again.");
+        }
       }
-    }
-  }, 5000); // Wait 5 seconds before trying HTTP fallback
+    }, 5000);
 
-  // Store timeout ID so we can clear it if socket succeeds
-  optimisticMessage.timeoutId = messageTimeout;
+    optimisticMessage.timeoutId = messageTimeout;
+
+  } catch (error) {
+    console.error("❌ Error in sendMessage:", error);
+    setMessages(prev => prev.filter(m => m.id !== tempId));
+    alert("Failed to send message. Please try again.");
+  }
 };
 
   const handleKeyPress = (e) => {
