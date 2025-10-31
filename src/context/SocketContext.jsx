@@ -181,19 +181,26 @@ export const SocketProvider = ({ children }) => {
 
   // ==================== HELPER FUNCTIONS ====================
   const joinRoom = useCallback((chatRoomId) => {
-    if (!socket || !chatRoomId) {
-      console.warn("⚠️ Cannot join room: missing socket or chatRoomId");
-      return;
-    }
+  console.log("🎯 joinRoom called with:", chatRoomId);
+  
+  if (!socket) {
+    console.error("❌ joinRoom: No socket!");
+    return;
+  }
 
-    if (!socket.connected) {
-      console.warn("⚠️ Socket not connected, cannot join room");
-      return;
-    }
+  if (!chatRoomId) {
+    console.error("❌ joinRoom: No chatRoomId!");
+    return;
+  }
 
-    console.log(`📥 [Emit] joinRoom:`, chatRoomId);
-    socket.emit("joinRoom", { chatRoomId });
-  }, [socket]);
+  if (!socket.connected) {
+    console.error("❌ joinRoom: Socket not connected!");
+    return;
+  }
+
+  console.log("✅ Emitting joinRoom event");
+  socket.emit("joinRoom", { chatRoomId });
+}, [socket]);
 
   const leaveRoom = useCallback((chatRoomId) => {
     if (!socket || !chatRoomId) return;
