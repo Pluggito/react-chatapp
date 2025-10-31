@@ -35,6 +35,7 @@ const Chat = ({
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [chatRoom, setChatRoom] = useState(null);
+ // const [socketReady, setSocketReady] = useState(false);
   const { user, authToken } = useContext(AuthContext);
   const {
     socket,
@@ -126,23 +127,43 @@ const Chat = ({
     fetchChatData();
   }, [chatId, user?.id, authToken, markMessagesAsRead, setActiveMembers]);
 
-  // ==================== JOIN/LEAVE ROOM ====================
- useEffect(() => {
-  if (!socket || !chatId || !isConnected) {
-    console.warn("⚠️ Cannot join room: socket not ready", { socket: !!socket, chatId, isConnected });
+// ==================== JOIN/LEAVE ROOM - FIXED VERSION ====================
+useEffect(() => {
+  console.log("\n🔵 JOIN ROOM EFFECT TRIGGERED");
+  console.log("  Conditions:", {
+    hasSocket: !!socket,
+    hasChatId: !!chatId,
+    isConnected,
+    socketId: socket?.id,
+    socketConnected: socket?.connected
+  });
+
+  // CRITICAL FIX: Check all conditions properly
+  if (!socket || !chatId || !isConnected || !socket.connected) {
+    console.log("⚠️ Not ready to join room yet:", {
+      socket: !!socket,
+      chatId: !!chatId,
+      isConnected,
+      socketConnected: socket?.connected
+    });
     return;
   }
 
-  console.log("🔌 Joining room with connected socket:", chatId);
-  joinRoom(chatId);
+  console.log("✅ All conditions met, joining room:", chatId);
+  
+  // Add a small delay to ensure socket is fully ready
+  const joinTimer = setTimeout(() => {
+    console.log("🔌 Executing joinRoom for:", chatId);
+    joinRoom(chatId);
+  }, 100);
 
   return () => {
-    console.log("🔌 Leaving room:", chatId);
+    clearTimeout(joinTimer);
+    console.log("🔴 CLEANUP: Leaving room:", chatId);
     leaveRoom(chatId);
     stopTyping(chatId);
   };
 }, [socket, chatId, isConnected, joinRoom, leaveRoom, stopTyping]);
-
   // ==================== HANDLE NEW MESSAGES ====================
 useEffect(() => {
   if (!newMessage) {
@@ -245,39 +266,39 @@ useEffect(() => {
     handleTyping();
   };
 
+
   // ==================== SEND MESSAGE ====================
 const sendMessage = async () => {
+  console.log("\n🟣 SEND MESSAGE FUNCTION CALLED");
+
+  // ENHANCED CHECKS
   if (!text.trim() || !chatId || !user?.id) {
-    console.warn("❌ Cannot send: missing required data");
+    console.log("❌ Missing required data");
     return;
   }
 
-  // Check socket connection
-  if (!socket || !socket.connected) {
-    console.error("❌ Socket not connected, status:", {
-      socketExists: !!socket,
-      connected: socket?.connected,
+  // CRITICAL: Check socket is ready
+  if (!socket || !socket.connected || !isConnected) {
+    console.error("❌ Socket not ready!", {
+      hasSocket: !!socket,
+      socketConnected: socket?.connected,
       isConnected
     });
-    alert("Connection lost. Please refresh the page.");
+    alert("Connection is not ready. Please wait a moment and try again.");
     return;
   }
 
   const messageContent = text.trim();
   const tempId = `temp-${Date.now()}-${Math.random()}`;
   
-  console.log("🚀 Sending message:", { 
-    chatId, 
-    content: messageContent.substring(0, 50),
-    socketId: socket.id,
-    connected: socket.connected 
-  });
+  console.log("📤 SENDING MESSAGE:");
+  console.log("  chatId:", chatId);
+  console.log("  content:", messageContent.substring(0, 50));
+  console.log("  socketId:", socket.id);
   
-  // Clear input immediately
   setText("");
   stopTyping(chatId);
 
-  // Optimistic update
   const optimisticMessage = {
     id: tempId,
     content: messageContent,
@@ -297,56 +318,38 @@ const sendMessage = async () => {
   };
 
   setMessages(prev => [...prev, optimisticMessage]);
+  socketSendMessage(chatId, messageContent, "TEXT");
 
-  // Send via socket with acknowledgment
-  try {
-    console.log("📤 Emitting message:send event");
-    socketSendMessage(chatId, messageContent, "TEXT");
+  const messageTimeout = setTimeout(async () => {
+    console.warn("\n⏰ Socket timeout, trying HTTP fallback");
     
-    // Fallback timer
-    const messageTimeout = setTimeout(async () => {
-      console.warn("⚠️ Socket response timeout (5s), trying HTTP fallback");
-      
-      try {
-        const { data: newMsg } = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
-          { 
-            senderId: user.id, 
-            content: messageContent, 
-            type: "TEXT" 
-          },
-          {
-            headers: { Authorization: `Bearer ${authToken}` },
-            withCredentials: true
-          }
-        );
-
-        console.log("✅ HTTP fallback successful");
-
-        setMessages(prev => 
-          prev.map(m => m.id === tempId ? { ...newMsg, pending: false } : m)
-        );
-
-      } catch (httpErr) {
-        console.error("❌ HTTP fallback failed:", httpErr.response?.data || httpErr.message);
-        
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        
-        if (httpErr.response?.status === 401) {
-          alert("Session expired. Please refresh and login again.");
-        } else {
-          alert("Failed to send message. Please try again.");
+    try {
+      const { data: newMsg } = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+        { 
+          senderId: user.id, 
+          content: messageContent, 
+          type: "TEXT" 
+        },
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+          withCredentials: true
         }
-      }
-    }, 5000);
+      );
 
-    optimisticMessage.timeoutId = messageTimeout;
+      console.log("✅ HTTP fallback successful");
+      setMessages(prev => 
+        prev.map(m => m.id === tempId ? { ...newMsg, pending: false } : m)
+      );
 
-  } catch (error) {
-    console.error("❌ Error in sendMessage:", error);
-    setMessages(prev => prev.filter(m => m.id !== tempId));
-    alert("Failed to send message. Please try again.");
-  }
+    } catch (httpErr) {
+      console.error("❌ HTTP fallback failed:", httpErr);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      alert("Failed to send message. Please try again.");
+    }
+  }, 5000);
+
+  optimisticMessage.timeoutId = messageTimeout;
 };
 
   const handleKeyPress = (e) => {
