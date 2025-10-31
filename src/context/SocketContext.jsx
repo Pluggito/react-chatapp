@@ -38,7 +38,10 @@ export const SocketProvider = ({ children }) => {
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      timeout: 20000
+      timeout: 20000,
+      path: "/socket.io/",
+      secure: true, // ✅ Force secure connection in production
+      rejectUnauthorized: false
     });
 
     // Connection handlers
