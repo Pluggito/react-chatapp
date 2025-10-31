@@ -74,13 +74,15 @@ const Chat = ({
 
         // Get chatroom details
         const { data: chatRoomData } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}`,
+           { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
         );
         setChatRoom(chatRoomData);
 
         // Get active members
         const { data: members } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/members`,
+           { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
         );
 
         const otherMembers = members.filter(
@@ -90,17 +92,18 @@ const Chat = ({
 
         // Get messages
         const { data: msgs } = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`
+          `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
+           { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
         );
         setMessages(msgs);
 
         // Mark unread messages as read
-        const unreadMessageIds = msgs
-          .filter((msg) => 
-            msg.senderId !== user.id && 
-            !msg.readers.includes(user.id)
-          )
-          .map((msg) => msg.id);
+        const unreadMessageIds = (msgs || [])
+  .filter((msg) => 
+    msg && msg.senderId !== user.id && 
+    msg.readers && !msg.readers.includes(user.id)
+  )
+  .map((msg) => msg.id);
 
         if (unreadMessageIds.length > 0) {
           markMessagesAsRead(chatId, unreadMessageIds);
