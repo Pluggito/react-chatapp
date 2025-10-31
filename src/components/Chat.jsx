@@ -95,12 +95,12 @@ const Chat = ({
         setMessages(msgs);
 
         // Mark unread messages as read
-        const unreadMessageIds = msgs
-          .filter((msg) => 
-            msg.senderId !== user.id && 
-            !msg.readers.includes(user.id)
-          )
-          .map((msg) => msg.id);
+        const unreadMessageIds = (msgs || [])
+  .filter((msg) => 
+    msg && msg.senderId !== user.id && 
+    msg.readers && !msg.readers.includes(user.id)
+  )
+  .map((msg) => msg.id);
 
         if (unreadMessageIds.length > 0) {
           markMessagesAsRead(chatId, unreadMessageIds);

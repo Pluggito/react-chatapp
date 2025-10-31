@@ -32,7 +32,12 @@ export const SocketProvider = ({ children }) => {
     console.log("🔌 Connecting to socket...");
 
     const s = io(SOCKET_URL, {
-      query: { userId: user.id },
+      query: { userId: user.id,
+        token: authToken
+       },
+       auth: {
+        token: authToken // Socket.io auth object
+      },  
       transports: ["websocket", "polling"],
       withCredentials: true,
       reconnection: true,
