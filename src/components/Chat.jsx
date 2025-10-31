@@ -201,10 +201,24 @@ const Chat = ({
 
   // ==================== SEND MESSAGE ====================
 const sendMessage = async () => {
-  if (!text.trim() || !chatId || !user?.id) return;
+  if (!text.trim() || !chatId || !user?.id) {
+    console.warn("❌ Cannot send: missing required data");
+    return;
+  }
+
+  // Check socket connection
+  if (!socket || !socket.connected) {
+    console.error("❌ Socket not connected");
+    alert("Connection lost. Trying to reconnect...");
+    return;
+  }
 
   const messageContent = text.trim();
-  const tempId = `temp-${Date.now()}`;
+  const tempId = `temp-${Date.now()}-${Math.random()}`;
+  
+  console.log("🚀 Sending message:", { chatId, content: messageContent });
+  
+  // Clear input immediately for better UX
   setText("");
   stopTyping(chatId);
 
@@ -218,63 +232,72 @@ const sendMessage = async () => {
       id: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
-      username: user.username
+      username: user.username,
+      avatar: user.avatar
     },
     createdAt: new Date().toISOString(),
-    readers: [],
+    readers: [user.id],
     chatRoomId: chatId,
-    pending: true // ✅ Mark as pending
+    pending: true
   };
 
   setMessages(prev => [...prev, optimisticMessage]);
 
-  try {
-    // ✅ Send via socket with acknowledgment
-    socketSendMessage(chatId, messageContent, "TEXT");
+  // Send via socket
+  socketSendMessage(chatId, messageContent, "TEXT");
 
-    // ✅ Wait for socket confirmation (with timeout)
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Message send timeout"));
-      }, 5000);
-
-      // Listen for confirmation from socket
-      const handler = (msg) => {
-        if (msg.content === messageContent) {
-          clearTimeout(timeout);
-          socket.off("message:received", handler);
-          
-          // Replace temp message with real one
-          setMessages(prev => 
-            prev.map(m => m.id === tempId ? { ...msg, pending: false } : m)
-          );
-          resolve();
-        }
+  // Wait for the message to come back via message:received
+  const messageTimeout = setTimeout(async () => {
+    console.warn("⚠️ Socket send timeout, falling back to HTTP");
+    
+    try {
+      const config = {
+        headers: { 
+          Authorization: `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        withCredentials: true
       };
 
-      socket.on("message:received", handler);
-    });
-
-  } catch (err) {
-    console.error("Socket send failed, falling back to HTTP:", err);
-    
-    // ✅ Fallback to HTTP if socket fails
-    try {
       const { data: newMsg } = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/${chatId}/messages`,
-        { senderId: user.id, content: messageContent, type: "TEXT" },
-        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
+        { 
+          senderId: user.id, 
+          content: messageContent, 
+          type: "TEXT" 
+        },
+        config
       );
 
+      console.log("✅ HTTP fallback successful:", newMsg);
+
+      // Replace temp message with real one from HTTP
       setMessages(prev => 
-        prev.map(m => m.id === tempId ? newMsg : m)
+        prev.map(m => m.id === tempId ? { ...newMsg, pending: false } : m)
       );
+
+      // Clear the timeout
+      clearTimeout(messageTimeout);
+
     } catch (httpErr) {
-      // Both failed - remove message and show error
+      console.error("❌ HTTP fallback failed:", httpErr);
+      
+      // Remove failed message
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      alert("Failed to send message. Please check your connection.", httpErr);
+      
+      // Show user-friendly error
+      if (httpErr.response?.status === 401) {
+        alert("Session expired. Please refresh the page and login again.");
+      } else if (httpErr.response?.status === 403) {
+        alert("You don't have permission to send messages in this chat.");
+      } else {
+        alert("Failed to send message. Please check your internet connection.");
+      }
     }
-  }
+  }, 5000); // Wait 5 seconds before trying HTTP fallback
+
+  // Store timeout ID so we can clear it if socket succeeds
+  optimisticMessage.timeoutId = messageTimeout;
 };
 
   const handleKeyPress = (e) => {
