@@ -138,25 +138,52 @@ const Chat = ({
   }, [socket, chatId, joinRoom, leaveRoom, stopTyping]);
 
   // ==================== HANDLE NEW MESSAGES ====================
-  useEffect(() => {
-    if (!newMessage || newMessage.chatRoomId !== chatId) return;
+ useEffect(() => {
+  if (!newMessage || newMessage.chatRoomId !== chatId) return;
 
-    console.log("📩 New message received:", newMessage);
+  console.log("📩 New message received:", newMessage);
 
-    setMessages((prev) => {
-      const exists = prev.some((m) => m.id === newMessage.id);
-      if (exists) return prev;
+  setMessages((prev) => {
+    // Find and replace pending message
+    const tempMsgIndex = prev.findIndex(
+      m => m.pending && 
+           m.content === newMessage.content && 
+           m.senderId === newMessage.senderId &&
+           m.chatRoomId === newMessage.chatRoomId
+    );
+
+    if (tempMsgIndex !== -1) {
+      console.log("✅ Replacing temp message with real one");
       
-      // Auto-mark as read if it's from another user
-      if (newMessage.senderId !== user?.id) {
-        setTimeout(() => {
-          markMessagesAsRead(chatId, [newMessage.id]);
-        }, 500);
+      // Clear the timeout for HTTP fallback
+      const tempMsg = prev[tempMsgIndex];
+      if (tempMsg.timeoutId) {
+        clearTimeout(tempMsg.timeoutId);
       }
-      
-      return [...prev, newMessage];
-    });
-  }, [newMessage, chatId, user?.id, markMessagesAsRead]);
+
+      // Replace temp message with real one
+      const newMessages = [...prev];
+      newMessages[tempMsgIndex] = { ...newMessage, pending: false };
+      return newMessages;
+    }
+
+    // Check if message already exists by ID
+    const exists = prev.some(m => m.id === newMessage.id);
+    if (exists) {
+      console.log("⚠️ Message already exists, skipping");
+      return prev;
+    }
+    
+    // Auto-mark as read if from another user
+    if (newMessage.senderId !== user?.id) {
+      setTimeout(() => {
+        markMessagesAsRead(chatId, [newMessage.id]);
+      }, 500);
+    }
+    
+    return [...prev, newMessage];
+  });
+}, [newMessage, chatId, user?.id, markMessagesAsRead]);
 
   // ==================== HANDLE READ UPDATES ====================
   useEffect(() => {
