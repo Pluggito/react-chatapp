@@ -40,7 +40,7 @@ export const SocketProvider = ({ children }) => {
       auth: {
         token: authToken
       },  
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       withCredentials: true,
       reconnection: true,
       reconnectionAttempts: 10,
