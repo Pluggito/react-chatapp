@@ -92,7 +92,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
       )
       setSearchResults(res.data)
     } catch (err) {
-      console.error("Error in searching user", err)
+     // console.error("Error in searching user", err)
       setSearchResults([])
     }
   }

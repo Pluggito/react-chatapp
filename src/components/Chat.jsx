@@ -129,37 +129,37 @@ const Chat = ({
 
 // ==================== JOIN/LEAVE ROOM - FIXED VERSION ====================
 useEffect(() => {
-  console.log("\n🔵 JOIN ROOM EFFECT TRIGGERED");
-  console.log("  Conditions:", {
-    hasSocket: !!socket,
-    hasChatId: !!chatId,
-    isConnected,
-    socketId: socket?.id,
-    socketConnected: socket?.connected
-  });
+  // console.log("\n🔵 JOIN ROOM EFFECT TRIGGERED");
+ // console.log("  Conditions:", {
+ //   hasSocket: !!socket,
+  //   hasChatId: !!chatId,
+  //   isConnected,
+  //  socketId: socket?.id,
+  //  socketConnected: socket?.connected
+  //});
 
   // CRITICAL FIX: Check all conditions properly
   if (!socket || !chatId || !isConnected || !socket.connected) {
-    console.log("⚠️ Not ready to join room yet:", {
-      socket: !!socket,
-      chatId: !!chatId,
-      isConnected,
-      socketConnected: socket?.connected
-    });
+    // console.log("⚠️ Not ready to join room yet:", {
+    //   socket: !!socket,
+    //   chatId: !!chatId,
+    //   isConnected,
+    //   socketConnected: socket?.connected
+    // });
     return;
   }
 
-  console.log("✅ All conditions met, joining room:", chatId);
+ // console.log("✅ All conditions met, joining room:", chatId);
   
   // Add a small delay to ensure socket is fully ready
   const joinTimer = setTimeout(() => {
-    console.log("🔌 Executing joinRoom for:", chatId);
+    // console.log("🔌 Executing joinRoom for:", chatId);
     joinRoom(chatId);
   }, 100);
 
   return () => {
     clearTimeout(joinTimer);
-    console.log("🔴 CLEANUP: Leaving room:", chatId);
+    // console.log("🔴 CLEANUP: Leaving room:", chatId);
     leaveRoom(chatId);
     stopTyping(chatId);
   };
@@ -170,16 +170,16 @@ useEffect(() => {
     return;
   }
 
-  console.log("📩 New message event received:", {
-    messageId: newMessage.id,
-    chatRoomId: newMessage.chatRoomId,
-    currentChatId: chatId,
-    content: newMessage.content?.substring(0, 50)
-  });
+ // console.log("📩 New message event received:", {
+  //   messageId: newMessage.id,
+  //   chatRoomId: newMessage.chatRoomId,
+  //   currentChatId: chatId,
+  //   content: newMessage.content?.substring(0, 50)
+  // });
 
   // Only process messages for current chat
   if (newMessage.chatRoomId !== chatId) {
-    console.log("⏭️ Message is for different chat, ignoring");
+   // console.log("⏭️ Message is for different chat, ignoring");
     return;
   }
 
@@ -187,7 +187,7 @@ useEffect(() => {
     // Check if message already exists by ID
     const exists = prev.some(m => m.id === newMessage.id);
     if (exists) {
-      console.log("⚠️ Message with ID already exists, skipping:", newMessage.id);
+      // console.log("⚠️ Message with ID already exists, skipping:", newMessage.id);
       return prev;
     }
 
@@ -199,7 +199,7 @@ useEffect(() => {
     );
 
     if (tempMsgIndex !== -1) {
-      console.log("✅ Replacing pending message with real one");
+      // console.log("✅ Replacing pending message with real one");
       
       const tempMsg = prev[tempMsgIndex];
       if (tempMsg.timeoutId) {
@@ -211,12 +211,12 @@ useEffect(() => {
       return newMessages;
     }
 
-    console.log("✅ Adding new message to list");
+   // console.log("✅ Adding new message to list");
     
     // Auto-mark as read if from another user
     if (newMessage.senderId !== user?.id) {
       setTimeout(() => {
-        console.log("📖 Auto-marking message as read:", newMessage.id);
+        // console.log("📖 Auto-marking message as read:", newMessage.id);
         markMessagesAsRead(chatId, [newMessage.id]);
       }, 500);
     }
@@ -229,7 +229,7 @@ useEffect(() => {
   useEffect(() => {
     if (!messageReadUpdate || messageReadUpdate.chatRoomId !== chatId) return;
 
-    console.log("✅ Message read update:", messageReadUpdate);
+    // console.log("✅ Message read update:", messageReadUpdate);
 
     setMessages((prev) =>
       prev.map((msg) => {
@@ -269,11 +269,11 @@ useEffect(() => {
 
   // ==================== SEND MESSAGE ====================
 const sendMessage = async () => {
-  console.log("\n🟣 SEND MESSAGE FUNCTION CALLED");
+ // console.log("\n🟣 SEND MESSAGE FUNCTION CALLED");
 
   // ENHANCED CHECKS
   if (!text.trim() || !chatId || !user?.id) {
-    console.log("❌ Missing required data");
+   // console.log("❌ Missing required data");
     return;
   }
 
@@ -291,10 +291,10 @@ const sendMessage = async () => {
   const messageContent = text.trim();
   const tempId = `temp-${Date.now()}-${Math.random()}`;
   
-  console.log("📤 SENDING MESSAGE:");
-  console.log("  chatId:", chatId);
-  console.log("  content:", messageContent.substring(0, 50));
-  console.log("  socketId:", socket.id);
+ // console.log("📤 SENDING MESSAGE:");
+ // console.log("  chatId:", chatId);
+ // console.log("  content:", messageContent.substring(0, 50));
+ // console.log("  socketId:", socket.id);
   
   setText("");
   stopTyping(chatId);
@@ -321,7 +321,7 @@ const sendMessage = async () => {
   socketSendMessage(chatId, messageContent, "TEXT");
 
   const messageTimeout = setTimeout(async () => {
-    console.warn("\n⏰ Socket timeout, trying HTTP fallback");
+   // console.warn("\n⏰ Socket timeout, trying HTTP fallback");
     
     try {
       const { data: newMsg } = await axios.post(
@@ -337,13 +337,13 @@ const sendMessage = async () => {
         }
       );
 
-      console.log("✅ HTTP fallback successful");
+     // console.log("✅ HTTP fallback successful");
       setMessages(prev => 
         prev.map(m => m.id === tempId ? { ...newMsg, pending: false } : m)
       );
 
     } catch (httpErr) {
-      console.error("❌ HTTP fallback failed:", httpErr);
+     // console.error("❌ HTTP fallback failed:", httpErr);
       setMessages(prev => prev.filter(m => m.id !== tempId));
       alert("Failed to send message. Please try again.");
     }
