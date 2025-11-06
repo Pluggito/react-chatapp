@@ -16,6 +16,7 @@ const App = () => {
   const [activeChatRoomId, setActiveChatRoomId] = useState(null);
   const [activeMembers, setActiveMembers] = useState([]);
   const syncUser = user !== null && user !== undefined;
+  //const syncUser = true
   const [openDetail, setOpenDetail] = useState(false);
   const [mobileView, setMobileView] = useState("list"); // 'list' or 'chat'
 
