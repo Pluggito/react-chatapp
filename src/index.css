@@ -37,7 +37,20 @@
   .hover\:scrollbar-thumb-white\/30:hover::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.3);
   }
+
+  /* Prevent WaveSurfer canvas from overflowing outside the bubble */
+.waveform-container canvas,
+.waveform-container wave {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 28px !important;
+  display: block;
+  overflow: hidden;
 }
+}
+
+
+
 
 
 @theme inline {
