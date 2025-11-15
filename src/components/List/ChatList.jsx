@@ -35,6 +35,8 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
           }
       )
 
+      console.log("Token:", authToken);
+
       const formattedContacts = res.data.map((chatroom) => {
         const otherMember = chatroom.members?.find((member) => member.userId !== user.id)
         const otherUser = otherMember?.user
