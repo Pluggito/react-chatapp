@@ -33,7 +33,7 @@ const removeAccessToken = () => {
 
 // ===== Auth + Socket Provider =====
 export const AuthProvider = ({ children }) => {
-  const [authToken, setAuthToken] = useState("");
+  const [authToken, setAuthToken] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
