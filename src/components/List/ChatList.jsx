@@ -1,5 +1,3 @@
-// ChatList.jsx - Fixed version with proper token handling
-
 import { useContext, useState, useEffect } from "react"
 import { Plus, Minus, SearchIcon } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar"
@@ -9,9 +7,8 @@ import { Input } from "../ui/input"
 import axios from "axios"
 import { AuthContext } from "../../context/AuthContext"
 import { SocketContext } from "../../context/SocketContext"
-//eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion"
-import { useAxiosAuth } from "../../hooks/useAxios"
 
 const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobile }) => {
   const [addMode, setAddMode] = useState(false)
@@ -22,52 +19,70 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   const { user, authToken, loading: authLoading } = useContext(AuthContext)
   const { chatListUpdate } = useContext(SocketContext)
   const [contacts, setContacts] = useState([])
-  
-  const axiosAuth = useAxiosAuth()
 
   // ==================== LOAD USER CHATROOMS ====================
   const loadUserChatrooms = async () => {
     try {
       setLoading(true)
 
-      console.log("=".repeat(60));
-      console.log("🔍 LOAD CHATROOMS DEBUG - ChatList Component");
-      console.log("=".repeat(60));
-      console.log("1️⃣ User from context:", user);
-      console.log("2️⃣ AuthToken from context:", authToken?.substring(0, 30) + '...');
-      console.log("3️⃣ Token from localStorage:", localStorage.getItem("accessToken")?.substring(0, 30) + '...');
-      console.log("4️⃣ User ID:", user?.id);
-      console.log("5️⃣ Has authToken:", !!authToken);
-      console.log("6️⃣ AuthToken length:", authToken?.length);
-      console.log("7️⃣ AuthLoading:", authLoading);
-      console.log("=".repeat(60));
+      console.log("=".repeat(80));
+      console.log("🔍 LOAD CHATROOMS - DETAILED DEBUG");
+      console.log("=".repeat(80));
+      
+      // Get token from context or fallback to localStorage
+      const token = authToken || localStorage.getItem("accessToken");
+      
+      console.log("1️⃣ Token Check:");
+      console.log("   - Token from context:", authToken?.substring(0, 30) + "...");
+      console.log("   - Token from localStorage:", localStorage.getItem("accessToken")?.substring(0, 30) + "...");
+      console.log("   - Using token:", token?.substring(0, 30) + "...");
+      console.log("   - Token exists:", !!token);
+      console.log("   - Token length:", token?.length);
+      
+      console.log("\n2️⃣ User Check:");
+      console.log("   - User:", user);
+      console.log("   - User ID:", user?.id);
 
-      // CRITICAL FIX: Ensure we have the token before making the request
-      if (!authToken) {
-        console.error("❌ No authToken available, cannot load chatrooms");
+      if (!token) {
+        console.error("❌ CRITICAL: No token available!");
+        console.log("=".repeat(80));
         setLoading(false);
         return;
       }
 
       if (!user?.id) {
-        console.error("❌ No user ID available, cannot load chatrooms");
+        console.error("❌ CRITICAL: No user ID!");
+        console.log("=".repeat(80));
         setLoading(false);
         return;
       }
 
-      console.log("📡 Making request to:", `/chatserver/chat/chatrooms/user/${user.id}`);
+      const url = `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`;
+      
+      console.log("\n3️⃣ Request Details:");
+      console.log("   - URL:", url);
+      console.log("   - Method: GET");
+      console.log("   - Authorization:", `Bearer ${token.substring(0, 30)}...`);
+      console.log("   - WithCredentials: true");
 
-      const res = await axiosAuth.get(
-        `/chatserver/chat/chatrooms/user/${user.id}`
-      )
+      // Make request with explicit headers
+      const res = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true,
+      });
 
-      console.log("✅ Chatrooms loaded successfully:", res.data);
+      console.log("\n✅ SUCCESS!");
+      console.log("   - Status:", res.status);
+      console.log("   - Data received:", res.data?.length, "chatrooms");
+      console.log("=".repeat(80));
 
       const formattedContacts = res.data.map((chatroom) => {
         const otherMember = chatroom.members?.find((member) => member.userId !== user.id)
         const otherUser = otherMember?.user
 
-        // Calculate unread count from last message readers array
         let unreadCount = 0
         if (chatroom.lastMessage && chatroom.lastMessage.userId !== user.id) {
           if (!chatroom.lastMessage.readers?.includes(user.id)) {
@@ -93,41 +108,40 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         }
       })
 
-      // Sort by most recent
       formattedContacts.sort((a, b) => 
         new Date(b.updatedAt) - new Date(a.updatedAt)
       )
 
       setContacts(formattedContacts)
-      console.log("✅ Contacts state updated with", formattedContacts.length, "chats");
       
     } catch (err) {
-      console.error("❌ Error loading chatrooms:", err);
-      console.error("Error response:", err.response?.data);
-      console.error("Error status:", err.response?.status);
-      console.error("Error headers:", err.response?.headers);
+      console.log("=".repeat(80));
+      console.error("❌ ERROR LOADING CHATROOMS");
+      console.log("=".repeat(80));
+      console.error("Error:", err);
+      console.error("Error message:", err.message);
+      console.error("Error response:", err.response);
+      console.error("Response status:", err.response?.status);
+      console.error("Response data:", err.response?.data);
+      console.error("Request headers:", err.config?.headers);
+      console.log("=".repeat(80));
     } finally {
       setLoading(false)
     }
   }
 
-  // ==================== LOAD CHATROOMS WHEN READY ====================
   useEffect(() => {
     console.log("🔄 ChatList useEffect triggered");
-    console.log("User ID:", user?.id);
-    console.log("AuthToken:", authToken ? "exists" : "missing");
-    console.log("AuthLoading:", authLoading);
+    console.log("   - authLoading:", authLoading);
+    console.log("   - user?.id:", user?.id);
+    console.log("   - authToken:", authToken ? "exists" : "missing");
     
-    // Wait for auth to finish loading and ensure we have both user and token
-    if (!authLoading && user?.id && authToken) {
-      console.log("✅ All conditions met, loading chatrooms...");
+    // Wait for auth to finish loading
+    if (!authLoading && user?.id && (authToken || localStorage.getItem("accessToken"))) {
+      console.log("✅ Conditions met, loading chatrooms...");
       loadUserChatrooms()
     } else {
-      console.log("⚠️ Waiting for conditions:", {
-        authLoading,
-        hasUser: !!user?.id,
-        hasToken: !!authToken
-      });
+      console.log("⚠️ Waiting for auth...");
     }
   }, [user?.id, authToken, authLoading])
 
@@ -159,10 +173,18 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         return
       }
 
-      // Use axiosAuth for authenticated requests
-      const res = await axiosAuth.post(
-        `/chatserver/chat/chatrooms`,
-        { currentUserId: user.id, otherUserId: selectedUser.id }
+      const token = authToken || localStorage.getItem("accessToken");
+      
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms`,
+        { currentUserId: user.id, otherUserId: selectedUser.id },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }, 
+          withCredentials: true 
+        }
       )
 
       const chatRoom = res.data
@@ -273,7 +295,6 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     },
   }
 
-  // Show loading state while auth is initializing
   if (authLoading) {
     return (
       <div className="flex flex-col h-[81dvh] md:h-[78dvh] items-center justify-center">
@@ -282,8 +303,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     )
   }
 
-  // Show error state if no auth
-  if (!user || !authToken) {
+  if (!user || (!authToken && !localStorage.getItem("accessToken"))) {
     return (
       <div className="flex flex-col h-[81dvh] md:h-[78dvh] items-center justify-center">
         <p className="text-white/60">Please sign in to view chats</p>
