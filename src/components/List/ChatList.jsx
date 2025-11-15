@@ -9,6 +9,7 @@ import { AuthContext } from "../../context/AuthContext"
 import { SocketContext } from "../../context/SocketContext"
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion"
+import { useAxiosAuth } from "../../utils/axios.config"
 
 const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobile }) => {
   const [addMode, setAddMode] = useState(false)
@@ -20,6 +21,8 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   const { chatListUpdate } = useContext(SocketContext)
 
   const [contacts, setContacts] = useState([])
+ const axiosAuth = useAxiosAuth();
+
 
   // ==================== LOAD USER CHATROOMS ====================
   const loadUserChatrooms = async () => {
@@ -39,12 +42,8 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     console.log("=".repeat(60));
 
 
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`,
-         {
-            headers: { Authorization: `Bearer ${authToken}` },
-            withCredentials: true,
-          }
+      const res = await axiosAuth.get(
+        `/chatserver/chat/chatrooms/user/${user.id}`
       )
 
 
