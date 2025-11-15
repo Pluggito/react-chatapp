@@ -35,7 +35,6 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
           }
       )
 
-      console.log("Token:", authToken);
 
       const formattedContacts = res.data.map((chatroom) => {
         const otherMember = chatroom.members?.find((member) => member.userId !== user.id)
@@ -76,6 +75,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
       setContacts(formattedContacts)
     } catch (err) {
       console.error("Error loading chatrooms:", err)
+       console.log("Token:", authToken);
     } finally {
       setLoading(false)
     }
