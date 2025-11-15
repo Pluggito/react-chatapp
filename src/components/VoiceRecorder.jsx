@@ -6,6 +6,8 @@ import WaveSurfer from "wavesurfer.js";
 import axios from "axios";
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
 const VoiceRecorderInline = ({ onSendVoiceNote, chatRoomId }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -27,6 +29,7 @@ const VoiceRecorderInline = ({ onSendVoiceNote, chatRoomId }) => {
   const animationFrameRef = useRef(null);
   const playbackWaveformRef = useRef(null);
   const streamRef = useRef(null);
+  const { authToken} = useContext(AuthContext);
 
   const MAX_RECORDING_TIME = 60;
 
@@ -271,6 +274,9 @@ const VoiceRecorderInline = ({ onSendVoiceNote, chatRoomId }) => {
         {
           headers: {
             "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${authToken}`,
+            withCredentials: true,
+
           },
           onUploadProgress: (progressEvent) => {
             const percentCompleted = Math.round(

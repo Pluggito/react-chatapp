@@ -28,7 +28,11 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     try {
       setLoading(true)
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`,
+         {
+            headers: { Authorization: `Bearer ${authToken}` },
+            withCredentials: true,
+          }
       )
 
       const formattedContacts = res.data.map((chatroom) => {
@@ -92,7 +96,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
       )
       setSearchResults(res.data)
     } catch (err) {
-     // console.error("Error in searching user", err)
+      console.error("Error in searching user", err)
       setSearchResults([])
     }
   }
