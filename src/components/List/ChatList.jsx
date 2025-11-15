@@ -1,3 +1,5 @@
+"use client"
+
 import { useContext, useState, useEffect } from "react"
 import { Plus, Minus, SearchIcon } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar"
@@ -16,77 +18,30 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   const [searchResults, setSearchResults] = useState([])
   const [alreadyAddedIds, setAlreadyAddedIds] = useState([])
   const [loading, setLoading] = useState(false)
-  const { user, authToken, loading: authLoading } = useContext(AuthContext)
+  const { user, authToken } = useContext(AuthContext)
   const { chatListUpdate } = useContext(SocketContext)
+
   const [contacts, setContacts] = useState([])
 
   // ==================== LOAD USER CHATROOMS ====================
   const loadUserChatrooms = async () => {
     try {
       setLoading(true)
-
-      console.log("=".repeat(80));
-      console.log("🔍 LOAD CHATROOMS - DETAILED DEBUG");
-      console.log("=".repeat(80));
-      
-      // Get token from context or fallback to localStorage
-      const token = authToken || localStorage.getItem("accessToken");
-      
-      console.log("1️⃣ Token Check:");
-      console.log("   - Token from context:", authToken?.substring(0, 30) + "...");
-      console.log("   - Token from localStorage:", localStorage.getItem("accessToken")?.substring(0, 30) + "...");
-      console.log("   - Using token:", token?.substring(0, 30) + "...");
-      console.log("   - Token exists:", !!token);
-      console.log("   - Token length:", token?.length);
-      
-      console.log("\n2️⃣ User Check:");
-      console.log("   - User:", user);
-      console.log("   - User ID:", user?.id);
-
-      if (!token) {
-        console.error("❌ CRITICAL: No token available!");
-        console.log("=".repeat(80));
-        setLoading(false);
-        return;
-      }
-
-      if (!user?.id) {
-        console.error("❌ CRITICAL: No user ID!");
-        console.log("=".repeat(80));
-        setLoading(false);
-        return;
-      }
-
-      const url = `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`;
-      
-      console.log("\n3️⃣ Request Details:");
-      console.log("   - URL:", url);
-      console.log("   - Method: GET");
-      console.log("   - Authorization:", `Bearer ${token.substring(0, 30)}...`);
-      console.log("   - WithCredentials: true");
-
-      // Make request with explicit headers
-      const res = await axios.get(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        withCredentials: true,
-      });
-
-      console.log("\n✅ SUCCESS!");
-      console.log("   - Status:", res.status);
-      console.log("   - Data received:", res.data?.length, "chatrooms");
-      console.log("=".repeat(80));
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`,
+        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
+      )
 
       const formattedContacts = res.data.map((chatroom) => {
         const otherMember = chatroom.members?.find((member) => member.userId !== user.id)
         const otherUser = otherMember?.user
 
+        // Calculate unread count from last message readers array
         let unreadCount = 0
         if (chatroom.lastMessage && chatroom.lastMessage.userId !== user.id) {
+          // If last message is not from me and I haven't read it
           if (!chatroom.lastMessage.readers?.includes(user.id)) {
-            unreadCount = 1
+            unreadCount = 1 // Simplified - in production, you'd count all unread messages
           }
         }
 
@@ -108,42 +63,24 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         }
       })
 
+      // Sort by most recent
       formattedContacts.sort((a, b) => 
         new Date(b.updatedAt) - new Date(a.updatedAt)
       )
 
       setContacts(formattedContacts)
-      
     } catch (err) {
-      console.log("=".repeat(80));
-      console.error("❌ ERROR LOADING CHATROOMS");
-      console.log("=".repeat(80));
-      console.error("Error:", err);
-      console.error("Error message:", err.message);
-      console.error("Error response:", err.response);
-      console.error("Response status:", err.response?.status);
-      console.error("Response data:", err.response?.data);
-      console.error("Request headers:", err.config?.headers);
-      console.log("=".repeat(80));
+      console.error("Error loading chatrooms:", err)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    console.log("🔄 ChatList useEffect triggered");
-    console.log("   - authLoading:", authLoading);
-    console.log("   - user?.id:", user?.id);
-    console.log("   - authToken:", authToken ? "exists" : "missing");
-    
-    // Wait for auth to finish loading
-    if (!authLoading && user?.id && (authToken || localStorage.getItem("accessToken"))) {
-      console.log("✅ Conditions met, loading chatrooms...");
+    if (user?.id && authToken) {
       loadUserChatrooms()
-    } else {
-      console.log("⚠️ Waiting for auth...");
     }
-  }, [user?.id, authToken, authLoading])
+  }, [user?.id, authToken])
 
   // ==================== SEARCH USERS ====================
   const getUserBySearch = async () => {
@@ -173,18 +110,10 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         return
       }
 
-      const token = authToken || localStorage.getItem("accessToken");
-      
       const res = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms`,
         { currentUserId: user.id, otherUserId: selectedUser.id },
-        { 
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          }, 
-          withCredentials: true 
-        }
+        { headers: { Authorization: `Bearer ${authToken}` }, withCredentials: true }
       )
 
       const chatRoom = res.data
@@ -230,6 +159,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
 
       const existingChat = prev[chatIndex]
 
+      // Determine preview text based on message type
       let messagePreview = message?.content || existingChat.message
       if (message?.type === "IMAGE") {
         messagePreview = "📷 Image"
@@ -237,10 +167,13 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         messagePreview = "🎤 Audio message"
       }
 
+      // Calculate unread count
       let newUnread = existingChat.unread
       if (activeChatRoomId === chatRoomId) {
+        // User is in the chat, so mark as read
         newUnread = 0
       } else if (message?.senderId !== user.id) {
+        // Message from someone else and user is not in chat
         if (!message?.readers?.includes(user.id)) {
           newUnread = (existingChat.unread || 0) + 1
         }
@@ -260,6 +193,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         updatedAt: message?.createdAt || new Date().toISOString()
       }
 
+      // Move to top
       const newList = [...prev]
       newList.splice(chatIndex, 1)
       newList.unshift(updatedChat)
@@ -295,25 +229,9 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     },
   }
 
-  if (authLoading) {
-    return (
-      <div className="flex flex-col h-[81dvh] md:h-[78dvh] items-center justify-center">
-        <p className="text-white/60">Loading...</p>
-      </div>
-    )
-  }
-
-  if (!user || (!authToken && !localStorage.getItem("accessToken"))) {
-    return (
-      <div className="flex flex-col h-[81dvh] md:h-[78dvh] items-center justify-center">
-        <p className="text-white/60">Please sign in to view chats</p>
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col h-[81dvh] md:h-[78dvh]">
-      {/* TOP BAR */}
+      {/* ==================== TOP BAR ==================== */}
       <div className="flex items-center justify-between p-3 gap-2 border-b border-white/10">
         <div
           className={`flex-1 flex items-center ${
@@ -420,7 +338,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
         </Dialog>
       </div>
 
-      {/* CHAT LIST */}
+      {/* ==================== CHAT LIST ==================== */}
       <div className="flex-1 overflow-y-auto scrollbar-thin scroll-smooth scrollbar-track-transparent scrollbar-thumb-white/20 hover:scrollbar-thumb-white/30">
         {loading ? (
           <div className="p-4 text-center text-white/60">Loading chats...</div>
