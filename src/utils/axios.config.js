@@ -1,30 +1,22 @@
 import axios from "axios";
-import { useContext, useMemo } from "react";
-import { AuthContext } from "../context/AuthContext";
 
 export const useAxiosAuth = () => {
-  const { authToken } = useContext(AuthContext);
+  const axiosInstance = axios.create({
+    baseURL: import.meta.env.VITE_API_BASE_URL,
+    withCredentials: true,
+  });
 
-  // useMemo ensures we don't recreate Axios instance on every render unnecessarily
-  const axiosInstance = useMemo(() => {
-    const instance = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL,
-      withCredentials: true,
-    });
-
-    // Attach auth token before each request
-    instance.interceptors.request.use(
-      (config) => {
-        if (authToken) {
-          config.headers.Authorization = `Bearer ${authToken}`;
-        }
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
-    return instance;
-  }, [authToken]);
+  // Attach auth token from localStorage before each request
+  axiosInstance.interceptors.request.use(
+    (config) => {
+      const token = localStorage.getItem("accessToken"); // <-- read from localStorage
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
 
   return axiosInstance;
 };
