@@ -27,6 +27,20 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   const loadUserChatrooms = async () => {
     try {
       setLoading(true)
+
+      console.log("=".repeat(60));
+    console.log("🔍 LOAD CHATROOMS DEBUG");
+    console.log("=".repeat(60));
+    console.log("1️⃣ User from context:", user);
+    console.log("2️⃣ AuthToken from context:", authToken);
+    console.log("3️⃣ Token from localStorage:", localStorage.getItem("accessToken"));
+    console.log("4️⃣ User ID:", user?.id);
+    console.log("5️⃣ Has authToken:", !!authToken);
+    console.log("6️⃣ AuthToken length:", authToken?.length);
+    console.log("7️⃣ AuthToken preview:", authToken?.substring(0, 30) + "...");
+    console.log("=".repeat(60));
+
+    
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`,
          {
