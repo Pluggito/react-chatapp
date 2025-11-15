@@ -1,5 +1,3 @@
-"use client"
-
 import { useContext, useState, useEffect } from "react"
 import { Plus, Minus, SearchIcon } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar"
@@ -18,7 +16,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   const [searchResults, setSearchResults] = useState([])
   const [alreadyAddedIds, setAlreadyAddedIds] = useState([])
   const [loading, setLoading] = useState(false)
-  const { user, authToken } = useContext(AuthContext)
+  const { user, authToken, loading: authLoading } = useContext(AuthContext)
   const { chatListUpdate } = useContext(SocketContext)
 
   const [contacts, setContacts] = useState([])
@@ -40,7 +38,7 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
     console.log("7️⃣ AuthToken preview:", authToken?.substring(0, 30) + "...");
     console.log("=".repeat(60));
 
-    
+
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/chat/chatrooms/user/${user.id}`,
          {
@@ -96,10 +94,10 @@ const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobil
   }
 
   useEffect(() => {
-    if (user?.id && authToken) {
+    if (user?.id && authToken && !authLoading) {
       loadUserChatrooms()
     }
-  }, [user?.id, authToken])
+  }, [user?.id, authToken, authLoading])
 
   // ==================== SEARCH USERS ====================
   const getUserBySearch = async () => {
