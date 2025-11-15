@@ -30,6 +30,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import VoiceNotePlayer from "./voice-note-player";
 import VoiceRecorderInline from "./VoiceRecorder";
+import ImageUploader from "./media-upload";
 
 const Chat = ({
   chatId,
@@ -42,10 +43,12 @@ const Chat = ({
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  //eslint-disable-next-line no-unused-vars
   const [chatRoom, setChatRoom] = useState(null);
   const { user, authToken } = useContext(AuthContext);
   const [activeVoiceNoteId, setActiveVoiceNoteId] = useState(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [showImageUploader, setShowImageUploader] = useState(false);
   const {
     socket,
     newMessage,
@@ -371,7 +374,7 @@ const Chat = ({
           prev.map((m) => (m.id === tempId ? { ...newMsg, pending: false } : m))
         );
       } catch (httpErr) {
-        // console.error("❌ HTTP fallback failed:", httpErr);
+        console.error("❌ HTTP fallback failed:", httpErr);
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         alert("Failed to send message. Please try again.");
       }
@@ -394,7 +397,7 @@ const Chat = ({
     // Send via socket
     socketSendMessage(chatId, null, type, mediaUrl, duration);
 
-    console.log("🎤 Voice note sent:", { mediaUrl, duration });
+   // console.log("🎤 Voice note sent:", { mediaUrl, duration });
   };
 
   // ==================== RENDER READ RECEIPT ICON ====================
@@ -449,6 +452,7 @@ const Chat = ({
       </motion.div>
     );
   };
+
 
   // ==================== RENDER MESSAGE CONTENT ====================
   const renderMessageContent = (message) => {
@@ -735,24 +739,45 @@ const Chat = ({
               />
             </motion.div>
           )}
+
+         {showImageUploader && (
+          <ImageUploader
+           chatRoomId={chatId}
+           onImageSent={() => setShowImageUploader(false)}
+            onClose={() => setShowImageUploader(false)}
+          />
+         )}
         </AnimatePresence>
 
         {/* Regular text input area */}
         <div className="flex-shrink-0 flex items-center gap-2 sm:gap-3 p-2 sm:p-3">
           {/* Desktop controls */}
           <div className="hidden lg:flex gap-2 sm:gap-3">
-            {[ImageIcon, Camera].map((Icon, idx) => (
-              <motion.button
-                key={idx}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Icon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
-              </motion.button>
-            ))}
+          <motion.button
+              onClick={() => {
+                setShowImageUploader(!showImageUploader);
+                if (showVoiceRecorder) setShowVoiceRecorder(false);
+              }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className={`transition-colors ${
+                showImageUploader
+                  ? "text-blue-400"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer" />
+            </motion.button>
+
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+              <Camera className="w-4 h-4 sm:w-5 sm:h-5 cursor-pointer text-white/70 hover:text-white transition-colors" />
+            </motion.button>
 
             <motion.button
-              onClick={() => setShowVoiceRecorder(!showVoiceRecorder)}
+              onClick={() => {
+                setShowVoiceRecorder(!showVoiceRecorder);
+                if (showImageUploader) setShowImageUploader(false);
+              }}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               className={`transition-colors ${
@@ -776,7 +801,11 @@ const Chat = ({
               </motion.div>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="bg-black/95 border border-white/20 rounded-lg shadow-lg backdrop-blur-sm">
-              <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
+              <DropdownMenuItem
+              onClick={() => {
+                setShowImageUploader(!showImageUploader);
+                if (showVoiceRecorder) setShowVoiceRecorder(false)
+              }} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10">
                 <ImageIcon className="w-5 h-5 text-white/80 flex-shrink-0" />
                 <span className="text-sm text-white/90">Photos</span>
               </DropdownMenuItem>
@@ -785,7 +814,10 @@ const Chat = ({
                 <span className="text-sm text-white/90">Camera</span>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => setShowVoiceRecorder(!showVoiceRecorder)}
+                onClick={()=> {
+                  setShowVoiceRecorder(!showVoiceRecorder);
+                  if(showImageUploader) setShowImageUploader(false)
+                }}
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/10 transition-colors rounded-md focus:bg-white/10"
               >
                 <Mic className="w-5 h-5 text-white/80 flex-shrink-0" />
@@ -795,7 +827,7 @@ const Chat = ({
           </DropdownMenu>
 
           {/* Text input area - hidden when voice recorder is active */}
-          {!showVoiceRecorder && (
+          {!showVoiceRecorder && !showImageUploader && (
             <>
               <textarea
                 className={`${
