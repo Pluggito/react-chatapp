@@ -9,7 +9,7 @@ import { AuthContext } from "../../context/AuthContext"
 import { SocketContext } from "../../context/SocketContext"
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion"
-import { useAxiosAuth } from "../../utils/axios.config"
+import { useAxiosAuth } from "../../hooks/useAxios"
 
 const ChatList = ({ onChatSelect, setActiveChatRoomId, activeChatRoomId, isMobile }) => {
   const [addMode, setAddMode] = useState(false)
