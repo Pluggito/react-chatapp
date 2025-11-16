@@ -10,7 +10,7 @@ const TOKEN_EXPIRY_KEY = "tokenExpiry";
 
 // ===== Local Storage Helpers =====
 const saveAccessToken = (token, expiresInHours = 24) => {
-  const expiryTime = Date.now() + expiresInHours * 60 * 60 * 1000;
+  const expiryTime = Date.now() + expiresInHours * 60 * 60 * 1000; // 24 hours
   localStorage.setItem(ACCESS_TOKEN_KEY, token);
   localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 };
@@ -31,8 +31,9 @@ const removeAccessToken = () => {
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
 };
 
+// ===== Auth + Socket Provider =====
 export const AuthProvider = ({ children }) => {
-  const [authToken, setAuthToken] = useState(null);
+  const [authToken, setAuthToken] = useState("");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,21 +42,16 @@ export const AuthProvider = ({ children }) => {
   // ---- Refresh token ----
   const refreshAccessToken = async () => {
     try {
-      console.log('🔄 Attempting to refresh access token...');
       const res = await axios.post(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/refresh`,
         {},
         { withCredentials: true }
       );
-      
-      const newToken = res.data.accessToken;
-      console.log('✅ New token received:', newToken?.substring(0, 30) + '...');
-      
-      setAuthToken(newToken);
-      saveAccessToken(newToken);
-      return newToken;
+      setAuthToken(res.data.accessToken);
+      saveAccessToken(res.data.accessToken);
+      return res.data.accessToken;
     } catch (err) {
-      console.error("❌ Refresh token failed", err);
+      console.error("Refresh token failed", err);
       if (isLoggedIn) toast.error("Session expired. Please sign in again.");
       userSignOut();
       throw new Error("Session expired. Please sign in again.");
@@ -90,8 +86,6 @@ export const AuthProvider = ({ children }) => {
       );
 
       const token = res.data.accessToken;
-      console.log('✅ SignIn successful, token received:', token?.substring(0, 30) + '...');
-      
       setAuthToken(token);
       saveAccessToken(token);
       setIsLoggedIn(true);
@@ -110,13 +104,8 @@ export const AuthProvider = ({ children }) => {
 
   // ---- Fetch current user ----
   const getCurrentUser = async (token = authToken) => {
-    if (!token) {
-      console.log('⚠️ No token provided to getCurrentUser');
-      return;
-    }
-    
+    if (!token) return;
     try {
-      console.log('📡 Fetching current user with token:', token?.substring(0, 30) + '...');
       const res = await axios.get(
         `${import.meta.env.VITE_API_BASE_URL}/chatserver/auth/current`,
         {
@@ -124,18 +113,15 @@ export const AuthProvider = ({ children }) => {
           withCredentials: true,
         }
       );
-      
-      console.log('✅ Current user fetched:', res.data);
       setUser(res.data);
       return res.data;
     } catch (err) {
       if (err.response?.status === 401 && !loading) {
         try {
-          console.log('⚠️ 401 error, attempting token refresh...');
           const newToken = await refreshAccessToken();
           return getCurrentUser(newToken);
         } catch (refreshErr) {
-          console.error("❌ Refresh failed:", refreshErr);
+          console.error("Refresh failed:", refreshErr);
           throw refreshErr;
         }
       }
@@ -158,10 +144,9 @@ export const AuthProvider = ({ children }) => {
 
     removeAccessToken();
     setUser(null);
-    setAuthToken(null); // Changed from "" to null for consistency
+    setAuthToken("");
     setIsLoggedIn(false);
     setError("");
-    console.log('✅ User signed out');
   };
 
   // ---- Check refresh token ----
@@ -182,31 +167,25 @@ export const AuthProvider = ({ children }) => {
     const restoreSession = async () => {
       try {
         setLoading(true);
-        console.log('🔄 Attempting to restore session...');
 
         const storedToken = getAccessToken();
         if (storedToken) {
-          console.log('✅ Found stored token:', storedToken?.substring(0, 30) + '...');
           setAuthToken(storedToken);
           await getCurrentUser(storedToken);
           setIsLoggedIn(true);
           return;
         }
 
-        console.log('⚠️ No stored token, checking for refresh token...');
         const hasRefreshToken = await checkRefreshTokenExists();
         if (hasRefreshToken) {
-          console.log('✅ Refresh token exists, refreshing access token...');
           const newToken = await refreshAccessToken();
           if (newToken) {
             await getCurrentUser(newToken);
             setIsLoggedIn(true);
           }
-        } else {
-          console.log('❌ No refresh token found');
         }
-      } catch (err) {
-        console.log("❌ Session restoration failed:", err);
+      } catch {
+        console.log("No active session or session expired");
       } finally {
         setLoading(false);
       }
@@ -214,11 +193,6 @@ export const AuthProvider = ({ children }) => {
 
     restoreSession();
   }, []);
-
-  // Debug: Log token changes
-  useEffect(() => {
-    console.log('🔑 AuthToken changed:', authToken ? authToken.substring(0, 30) + '...' : 'null');
-  }, [authToken]);
 
   return (
     <AuthContext.Provider
@@ -232,7 +206,6 @@ export const AuthProvider = ({ children }) => {
         userSignIn,
         getCurrentUser,
         userSignOut,
-        refreshAccessToken, // ✅ EXPORT THIS
       }}
     >
       {children}
